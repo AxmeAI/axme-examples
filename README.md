@@ -104,6 +104,6 @@ Each example directory contains a `README.md` with specific setup instructions.
 ## Contributing & Contact
 
 - Suggest an example: open an issue with label `example-request`
-- Alpha program access and integration questions: [hello@axme.ai](mailto:hello@axme.ai)
+- Alpha access: https://cloud.axme.ai/alpha · Contact and suggestions: [hello@axme.ai](mailto:hello@axme.ai)
 - Security disclosures: see [SECURITY.md](SECURITY.md)
 - Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
