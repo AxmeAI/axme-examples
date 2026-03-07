@@ -6,7 +6,15 @@ This roadmap defines what must be implemented before `axme-examples` can claim f
 
 Derived from `axme-local-internal/plans/ADOPTION_PRIMARY_ACTIONS_EXECUTION_PLAN.md`:
 
-- At least 3 runnable Tier-1 framework examples in this repository.
+- 4 runnable canonical developer-infra examples in this repository:
+  - `examples/approval-workflow`
+  - `examples/external-callback`
+  - `examples/retry-workflow`
+  - `examples/multi-service-coordination`
+- Protocol-only examples for open ecosystem path:
+  - `protocol/create-intent`
+  - `protocol/minimal-axp-service`
+  - `protocol/conformance-runner`
 - One-command run path per example.
 - Problem-first README opening (first 5 lines).
 - Explicit Alpha disclaimer in all example READMEs.
@@ -24,23 +32,30 @@ Derived from `axme-local-internal/plans/ADOPTION_PRIMARY_ACTIONS_EXECUTION_PLAN.
 
 ### Phase A - Repository skeleton
 
-- Create `examples/` subfolders for selected Tier-1 targets.
+- Create `examples/` subfolders by canonical use-case.
 - Add shared helper scripts (`scripts/validate_examples.sh`).
 - Replace README-only smoke CI with runnable validation jobs.
 
-### Phase B - Tier-1 initial delivery
+### Phase B - Canonical core delivery
 
-Implement at least three:
+Implement all four:
 
-- `examples/langgraph-distributed-agents`
-- `examples/autogen-cross-machine-handoff`
-- `examples/openai-agents-handoff-bridge`
+- `examples/approval-workflow`
+- `examples/external-callback`
+- `examples/retry-workflow`
+- `examples/multi-service-coordination`
+
+Language support policy:
+
+- Full runnable flows: Python + TypeScript.
+- Go/Java/.NET: snippets-only lane under `snippets/`.
 
 ### Phase C - Docs and discoverability
 
 - Add `docs/example-matrix.md` with use-case and support status.
 - Tag repository with backend + agent-discovery topics.
 - Link examples from `axme-docs` integration quickstart pages.
+- Keep cloud/protocol split explicit in README and docs.
 
 ## Definition of Ready for Full README
 
