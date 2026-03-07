@@ -1,0 +1,9 @@
+{
+  "intent_type": "demo.intent.v1",
+  "correlation_id": "3f1680f7-64bb-4a74-a8b4-bf5bc6a8ad84",
+  "from_agent": "agent://source",
+  "to_agent": "agent://target",
+  "payload": {
+    "task": "demo"
+  }
+}

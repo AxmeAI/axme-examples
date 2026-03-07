@@ -1,0 +1,6 @@
+.env
+**/.env
+**/.venv/
+**/.venv-e2e/
+**/node_modules/
+**/__pycache__/

@@ -1,150 +1,169 @@
 # axme-examples
 
-**Reference examples and starter templates for the AXME platform.** Runnable, well-commented code showing how to integrate AXME across Python, TypeScript, Go, Java, and .NET — organized by use case, not by language.
+Reference, runnable AXME examples organized by **use case**, not by language.
 
-> **Alpha** · Examples are being added in waves alongside the platform. Check back often.  
-> Requests for specific examples → [hello@axme.ai](mailto:hello@axme.ai)
+> **Alpha**: APIs and behavior are still evolving.  
+> Get API key: <https://cloud.axme.ai/alpha> · Contact: [hello@axme.ai](mailto:hello@axme.ai)
 
----
+## Runtime Model
 
-## What Is AXME?
+AXME Cloud currently provides the runtime environment for executing intents.
 
-AXME is a coordination infrastructure for durable execution of long-running intents across distributed systems.
+Publicly available:
 
-It provides a model for executing **intents** — requests that may take minutes, hours, or longer to complete — across services, agents, and human participants.
-
-## AXP — the Intent Protocol
-
-At the core of AXME is **AXP (Intent Protocol)** — an open protocol that defines contracts and lifecycle rules for intent processing.
-
-AXP can be implemented independently.  
-The open part of the platform includes:
-
-- the protocol specification and schemas
-- SDKs and CLI for integration
+- AXP spec and schemas
+- SDKs
+- CLI
 - conformance tests
-- implementation and integration documentation
+- docs
+- integration examples
 
-## AXME Cloud
+Managed/closed:
 
-**AXME Cloud** is the managed service that runs AXP in production together with **The Registry** (identity and routing).
+- AXME Cloud runtime
+- Registry
+- control plane
+- production execution infrastructure
 
-It removes operational complexity by providing:
+## Example Families
 
-- reliable intent delivery and retries  
-- lifecycle management for long-running operations  
-- handling of timeouts, waits, reminders, and escalation  
-- observability of intent status and execution history  
+This repository is split into two families:
 
-State and events can be accessed through:
+- **Cloud examples** (`cloud/` + `examples/`)  
+  Runnable end-to-end scenarios that use AXME Cloud runtime.
+- **Protocol examples** (`protocol/`)  
+  AXP-only examples that do not require AXME Cloud runtime.
 
-- API and SDKs  
-- event streams and webhooks  
-- the cloud console
+Cloud examples are the product path; protocol examples are for teams implementing or validating AXP-compatible components.
 
----
+## Requirements
 
-## What This Repository Is For
+These examples run against **AXME Cloud**.
 
-`axme-examples` is the fastest way to go from "I have an API key" to "I have working code." Each example is:
+You need:
 
-- **Runnable** — copy, fill in your API key, and run
-- **Self-contained** — minimal dependencies, no boilerplate to untangle
-- **Annotated** — comments explain *why*, not just *what*
-- **Tested** — CI validates all examples against the staging gateway
+- AXME Cloud API key in `AXME_API_KEY` (issued on the landing page)
 
----
+Get API key at:
 
-## Example Themes
+- <https://cloud.axme.ai/alpha>
 
-### Intent Lifecycle Without Polling
+Environment model:
 
-The AXME platform delivers state transitions via SSE — you don't need to poll. Examples in this category show how to write intent-driven code that reacts to events rather than checking status in a loop.
+- `AXME_API_KEY` - required; value is a workspace/service-account key (`axme_sa_...`) sent as `x-api-key`
+- `AXME_BASE_URL` - optional override; defaults to `https://api.cloud.axme.ai`
 
-![Intent Lifecycle State Machine](docs/diagrams/01-intent-lifecycle-state-machine.svg)
+## Auth Model For Examples
 
-*Each state transition triggers a real-time event. Your code subscribes once and receives `PENDING → PROCESSING → WAITING → DELIVERED → RESOLVED` transitions as they happen.*
+- Machine-to-machine examples in this repository use `AXME_API_KEY` only.
+- No actor/session token is required for the canonical examples.
+- Actor token (`Authorization: Bearer <access_token>`) is a separate user/session layer and is only needed for actor-scoped enterprise operations.
 
-### Transport Fallback and Retry-Safe Flows
+## Additional Keys For Bots/Processes
 
-Transport failures are handled by the platform, but your integration code should be written to handle them gracefully too. Examples here show idempotency key usage, retry-safe patterns, and how to handle `429` and `503` responses.
-
-![Transport Selection and Fallbacks](docs/diagrams/05-transport-selection-and-fallbacks.svg)
-
-*The platform automatically falls back to the next available transport (HTTP → queue → manual) when delivery fails. Your webhook handler should be idempotent: the same event may arrive more than once.*
-
-### Observability-First Async Operations
-
-Examples showing how to instrument your AXME integration: correlation IDs, structured logging, intent lifecycle traces, and SLO-aware timeout handling.
-
-![Observability and SLO Alerts](docs/diagrams/03-observability-slos-alerts.svg)
-
-*Best practice: propagate the `X-Correlation-Id` header from the intent through your internal service calls. This makes it possible to trace a full intent lifecycle across your stack.*
-
----
-
-## Planned Example Matrix
-
-| Use Case | Python | TypeScript | Go | Java | .NET |
-|---|---|---|---|---|---|
-| Send an intent (basic) | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
-| Observe events (SSE) | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
-| Human-in-the-loop approval | 🔜 | 🔜 | 🔜 | — | — |
-| Retry-safe with idempotency key | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
-| Webhook receiver + signature verify | 🔜 | 🔜 | — | — | — |
-| Transport fallback handling | 🔜 | 🔜 | — | — | — |
-
----
-
-## Repository Status
-
-Bootstrap phase. Examples are being built in priority order (Tier 1 first).
-
-See [`CONTENT_ROADMAP_ALPHA.md`](CONTENT_ROADMAP_ALPHA.md) for the full plan and timeline.
-
----
-
-## How to Run an Example
-
-Once examples are available:
+If you need one key per bot/process, create extra service accounts and keys (do not run onboarding again):
 
 ```bash
-git clone https://github.com/AxmeAI/axme-examples.git
-cd axme-examples
-ls
+axme service-accounts create \
+  --org-id "<org_id>" \
+  --workspace-id "<workspace_id>" \
+  --name "bot-processor-a" \
+  --created-by-actor-id "<actor_id>"
 
-# Enter one of the published example directories
-cd <language>/<example-name>
+axme service-accounts list --org-id "<org_id>" --workspace-id "<workspace_id>"
 
-# Set your API key
-export AXME_API_KEY="your-key-here"
-export AXME_BASE_URL="https://gateway.axme.ai"
-
-# Run
-python example.py
+axme service-accounts keys create \
+  --service-account-id "<sa_id>" \
+  --created-by-actor-id "<actor_id>"
 ```
 
-Each example directory contains a `README.md` with specific setup instructions.
+## Cloud Canonical Example Set
 
----
+| Example | What it demonstrates | Python | TypeScript |
+|---|---|---|---|
+| `examples/approval-workflow` | Automatic approval fast path (immediate `resume`/completion) | ✅ | ✅ |
+| `examples/external-callback` | External system callback resumes intent flow | ✅ | ✅ |
+| `examples/retry-workflow` | Retry with backoff + idempotent intent create semantics | ✅ | ✅ |
+| `examples/multi-service-coordination` | Coordinating multiple services under one lifecycle | ✅ | ✅ |
+
+See cloud index: [`cloud/README.md`](cloud/README.md)
+
+## Protocol Example Set (No Cloud Runtime Required)
+
+- `protocol/create-intent` - intent envelope shape and protocol-level submission flow
+- `protocol/minimal-axp-service` - minimal AXP-compatible service lifecycle (`accept -> progress -> complete`)
+- `protocol/conformance-runner` - run conformance suite against custom implementation
+
+See protocol index: [`protocol/README.md`](protocol/README.md)
+
+## Repository Layout
+
+```text
+cloud/
+  README.md
+  approval-workflow/
+  external-callback/
+  retry-workflow/
+  multi-service-coordination/
+examples/
+  approval-workflow/
+    .env.example
+    README.md
+    python/
+    typescript/
+  external-callback/
+  retry-workflow/
+  multi-service-coordination/
+protocol/
+  create-intent/
+  minimal-axp-service/
+  conformance-runner/
+snippets/
+  README.md
+```
+
+## Quick Start
+
+### Python
+
+```bash
+cd examples/approval-workflow/python
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp ../.env.example ../.env
+# edit ../.env and set AXME_API_KEY
+# optional override for staging/dev:
+# export AXME_BASE_URL="https://api.cloud.axme.ai"
+python main.py
+```
+
+### TypeScript
+
+```bash
+cd examples/approval-workflow/typescript
+npm install
+cp ../.env.example ../.env
+# edit ../.env and set AXME_API_KEY
+# optional override for staging/dev:
+# export AXME_BASE_URL="https://api.cloud.axme.ai"
+npm run start
+```
 
 ## Related Repositories
 
 | Repository | Role |
 |---|---|
-| [axme-docs](https://github.com/AxmeAI/axme-docs) | Full API reference — examples link here for deeper context |
-| [axme-sdk-python](https://github.com/AxmeAI/axme-sdk-python) | Python SDK used by Python examples |
-| [axme-sdk-typescript](https://github.com/AxmeAI/axme-sdk-typescript) | TypeScript SDK |
-| [axme-sdk-go](https://github.com/AxmeAI/axme-sdk-go) | Go SDK |
-| [axme-sdk-java](https://github.com/AxmeAI/axme-sdk-java) | Java SDK |
-| [axme-sdk-dotnet](https://github.com/AxmeAI/axme-sdk-dotnet) | .NET SDK |
-| [axme-reference-clients](https://github.com/AxmeAI/axme-reference-clients) | Full reference application implementations |
+| [axme-docs](https://github.com/AxmeAI/axme-docs) | API and integration docs |
+| [axme-sdk-python](https://github.com/AxmeAI/axme-sdk-python) | Python SDK used by examples |
+| [axme-sdk-typescript](https://github.com/AxmeAI/axme-sdk-typescript) | TypeScript SDK used by examples |
+| [axme-sdk-go](https://github.com/AxmeAI/axme-sdk-go) | Go SDK snippets |
+| [axme-sdk-java](https://github.com/AxmeAI/axme-sdk-java) | Java SDK snippets |
+| [axme-sdk-dotnet](https://github.com/AxmeAI/axme-sdk-dotnet) | .NET SDK snippets |
 
----
+## Contributing
 
-## Contributing & Contact
-
-- Suggest an example: open an issue with label `example-request`
-- Alpha access: https://cloud.axme.ai/alpha · Contact and suggestions: [hello@axme.ai](mailto:hello@axme.ai)
-- Security disclosures: see [SECURITY.md](SECURITY.md)
-- Contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Suggest a new scenario with `example-request` issue label.
+- Keep examples use-case-first and runnable end-to-end.
+- Keep Cloud and Protocol examples explicitly separated.
+- Keep tracked files in English.
