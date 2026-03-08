@@ -2,10 +2,11 @@
 
 Use-case-first canonical **Cloud runtime** examples:
 
-1. `approval-workflow`
-2. `external-callback`
-3. `retry-workflow`
-4. `multi-service-coordination`
+1. `approval-workflow` — single-actor auto-approval path
+2. `external-callback` — waiting for an external callback
+3. `retry-workflow` — automatic retry with backoff
+4. `multi-service-coordination` — parallel child intents
+5. `multi-actor-approval` — two distinct actors (requester + approver), each with their own `actor_token`
 
 Each scenario includes:
 
