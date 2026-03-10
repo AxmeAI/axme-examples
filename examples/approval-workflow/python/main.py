@@ -13,7 +13,10 @@ from axme import AxmeClient, AxmeClientConfig
 def _require_env(name: str) -> str:
     value = os.getenv(name, "").strip()
     if not value:
-        raise RuntimeError(f"missing required env var: {name}")
+        raise RuntimeError(
+            f"{name} is not set. Run 'axme login' to sign in, then:\n"
+            f"  export {name}=$(axme context show --show-key --json | jq -r .api_key)"
+        )
     return value
 
 
