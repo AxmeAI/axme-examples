@@ -16,8 +16,21 @@ from dotenv import load_dotenv
 from axme import AxmeClient, AxmeClientConfig
 
 
+def _read_cli_key_from_secrets(context: str = "default") -> str:
+    import json, pathlib
+    secrets_path = pathlib.Path.home() / ".config" / "axme" / "secrets.json"
+    try:
+        data = json.loads(secrets_path.read_text())
+        key = (data.get(context) or data.get("default") or {}).get("api_key", "").strip()
+        return key
+    except Exception:
+        return ""
+
+
 def _require_env(name: str) -> str:
     value = os.getenv(name, "").strip()
+    if not value and name == "AXME_API_KEY":
+        value = _read_cli_key_from_secrets()
     if not value:
         raise RuntimeError(f"missing required env var: {name}")
     return value
@@ -61,9 +74,8 @@ def main() -> None:
     base_url = os.getenv("AXME_BASE_URL", "https://api.cloud.axme.ai").strip()
     api_key = _require_env("AXME_API_KEY")
     actor_token = os.getenv("AXME_ACTOR_TOKEN", "").strip() or None
-    from_agent = os.getenv("AXME_FROM_AGENT", "agent://examples/orchestrator").strip()
-    to_agent = os.getenv("AXME_TO_AGENT", "agent://examples/external-worker").strip()
-    owner_agent = os.getenv("AXME_OWNER_AGENT", from_agent).strip()
+    # from_agent is derived by the server from the API key (no longer passed explicitly)
+    to_agent = os.getenv("AXME_TO_AGENT", "").strip() or None
     callback_host = os.getenv("AXME_CALLBACK_HOST", "127.0.0.1").strip()
     callback_port = _as_int("AXME_CALLBACK_PORT", 8787)
     callback_timeout = _as_int("AXME_CALLBACK_TIMEOUT_SECONDS", 30)
@@ -104,17 +116,21 @@ def main() -> None:
     config = AxmeClientConfig(base_url=base_url, api_key=api_key, actor_token=actor_token)
     correlation_id = str(uuid4())
     idempotency_key = f"external-callback-{correlation_id}"
-    intent_payload = {
+    intent_payload: dict[str, Any] = {
         "intent_type": "intent.external_callback.demo.v1",
         "correlation_id": correlation_id,
-        "from_agent": from_agent,
-        "to_agent": to_agent,
         "payload": {
             "operation": "capture_payment",
             "order_id": f"order-{correlation_id[:8]}",
             "callback_url": callback_url,
         },
     }
+    if to_agent:
+        intent_payload["to_agent"] = to_agent
+
+    print(f"[agent]   to_agent={to_agent or '(derived by server)'}")
+    print(f"[agent]   from_agent=(derived from API key)")
+    print()
 
     try:
         with AxmeClient(config) as client:
@@ -124,11 +140,15 @@ def main() -> None:
                 idempotency_key=idempotency_key,
             )
             intent_id = str(created["intent_id"])
-            print(f"[create] intent_id={intent_id} status={created.get('status')}")
+            status = created.get("status")
+            print(f"[create] intent_id={intent_id}")
+            print(f"  status     {status}")
+            print(f"  🎾 ball at  external-worker (waiting for callback)")
 
             print(f"[callback] waiting up to {callback_timeout}s for external payload...")
             callback_payload = callback_queue.get(timeout=callback_timeout)
             print(f"[callback] received: {json.dumps(callback_payload, ensure_ascii=True)}")
+            print(f"  🎾 ball at  orchestrator (callback received, resuming)")
 
             resumed = client.resume_intent(
                 intent_id,
@@ -136,7 +156,6 @@ def main() -> None:
                     "approve_current_step": True,
                     "reason": "external callback received",
                 },
-                owner_agent=owner_agent,
             )
             print(f"[resume] applied={resumed.get('applied')} policy_generation={resumed.get('policy_generation')}")
 
@@ -151,13 +170,18 @@ def main() -> None:
                 },
             )
             event = resolved.get("event", {})
-            print(f"[resolve] event_type={event.get('event_type')} status={event.get('status')}")
+            final_status = event.get("status", "")
+            print(f"[resolve] event_type={event.get('event_type')} status={final_status}")
+            print(f"  🎾 ball at  🟢 done  — terminal state {final_status}")
 
             final_intent = client.get_intent(intent_id).get("intent", {})
-            print(
-                f"[final] intent_id={intent_id} status={final_intent.get('status')} "
-                f"lifecycle_status={final_intent.get('lifecycle_status')}"
-            )
+            print()
+            print(f"[done]   intent_id={intent_id}")
+            print(f"         status={final_intent.get('status')}  lifecycle_status={final_intent.get('lifecycle_status')}")
+            print()
+            print("  Explore via CLI:")
+            print(f"    axme intents get {intent_id}")
+            print(f"    axme intents watch {intent_id}")
     finally:
         server.shutdown()
         server.server_close()

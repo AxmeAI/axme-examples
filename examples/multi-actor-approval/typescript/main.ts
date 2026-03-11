@@ -23,8 +23,24 @@ const __dirname = path.dirname(__filename);
 
 loadEnv({ path: path.resolve(__dirname, "..", ".env") });
 
+function readCliKeyFromSecrets(context = "default"): string {
+  try {
+    const os = require("os");
+    const fs = require("fs");
+    const path = require("path");
+    const secretsPath = path.join(os.homedir(), ".config", "axme", "secrets.json");
+    const data = JSON.parse(fs.readFileSync(secretsPath, "utf8"));
+    return ((data[context] ?? data["default"] ?? {}).api_key ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
 function requireEnv(name: string): string {
-  const value = (process.env[name] ?? "").trim();
+  let value = (process.env[name] ?? "").trim();
+  if (!value && name === "AXME_API_KEY") {
+    value = readCliKeyFromSecrets();
+  }
   if (!value) {
     throw new Error(`missing required env var: ${name}`);
   }
@@ -41,8 +57,8 @@ async function main(): Promise<void> {
   const requesterToken = requireEnv("AXME_REQUESTER_TOKEN");
   const approverToken = requireEnv("AXME_APPROVER_TOKEN");
 
-  const requesterAgent = (process.env.AXME_REQUESTER_AGENT ?? "agent://examples/requester").trim();
-  const approverAgent = (process.env.AXME_APPROVER_AGENT ?? "agent://examples/approver").trim();
+  const requesterAgent = (process.env["AXME_REQUESTER_AGENT"] ?? "").trim() || undefined;
+  const approverAgent  = (process.env["AXME_APPROVER_AGENT"]  ?? "").trim() || undefined;
 
   // --- Step 1: Requester creates the approval intent ---
   console.log("\n=== Step 1: Requester creates approval intent ===");
@@ -55,12 +71,11 @@ async function main(): Promise<void> {
     {
       intent_type: "intent.approval.multi_actor.v1",
       correlation_id: correlationId,
-      from_agent: requesterAgent,
-      to_agent: approverAgent,
+      ...(requesterAgent ? { from_agent: requesterAgent } : {}),
+      ...(approverAgent  ? { to_agent:   approverAgent  } : {}),
       payload: {
         request_id: `req-${correlationId.slice(0, 8)}`,
         summary: "Deploy backend service v2.4.1 to production",
-        requested_by: requesterAgent,
         approval_mode: "manual",
         risk_level: "high",
       },
@@ -69,9 +84,12 @@ async function main(): Promise<void> {
   );
 
   const intentId = String(created.intent_id);
-  console.log(`[requester] intent_id=${intentId} status=${String(created.status ?? "unknown")}`);
+  console.log(`[requester] intent_id=${intentId}`);
+  console.log(`  status     ${String(created.status ?? "unknown")}`);
+  console.log(`  🎾 ball at  requester (intent created)`);
   console.log(`[requester] correlation_id=${correlationId}`);
   console.log("\n[requester] Intent is in WAITING state. Handing off to approver.");
+  console.log(`  🎾 ball at  human:approver (WAITING_FOR_HUMAN)`);
 
   // --- Step 2: Approver reviews and approves ---
   console.log("\n=== Step 2: Approver reviews and approves ===");
@@ -99,7 +117,7 @@ async function main(): Promise<void> {
     {
       approve_current_step: true,
       reason: "Reviewed deployment plan — approved for production.",
-      approved_by: approverAgent,
+      approved_by: approverAgent ?? "approver",
     },
     { ownerAgent: approverAgent },
   );
@@ -107,13 +125,14 @@ async function main(): Promise<void> {
     `[approver] resume applied=${String(resumed.applied ?? "unknown")} ` +
       `policy_generation=${String(resumed.policy_generation ?? "unknown")}`,
   );
+  console.log(`  🎾 ball at  approver (resolving)`);
 
   // Approver resolves the intent to COMPLETED with the approval result.
   const resolved = await approver.resolveIntent(intentId, {
     status: "COMPLETED",
     result: {
       approval_result: "approved",
-      approved_by: approverAgent,
+      approved_by: approverAgent ?? "approver",
       summary,
       notes: "Production deployment approved by on-call lead.",
     },
@@ -132,6 +151,7 @@ async function main(): Promise<void> {
   const result = (finalData.result ?? {}) as Record<string, unknown>;
   console.log(`[requester] intent_id=${intentId}`);
   console.log(`[requester] final status=${String(finalData.status ?? "unknown")}`);
+  console.log(`  🎾 ball at  🟢 done  — terminal state ${String(finalData.status ?? "unknown")}`);
   console.log(`[requester] approval_result=${String(result.approval_result ?? "unknown")}`);
   console.log(`[requester] approved_by=${String(result.approved_by ?? "unknown")}`);
   console.log(`[requester] notes=${String(result.notes ?? "")}`);
