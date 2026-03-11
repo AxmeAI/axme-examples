@@ -1,9 +1,24 @@
+"""
+approval-workflow — Axme SDK example
+=====================================
+Demonstrates a multi-step approval flow through the Axme intent system.
+
+Run:
+    python main.py                   # interactive scenario picker
+    SCENARIO=1 python main.py        # skip the picker
+
+Prerequisites:
+    axme login                       # one-time sign-in — no env export needed
+"""
 from __future__ import annotations
 
+import json
 import os
 import queue
-import threading
+import sys
 import time
+import threading
+import urllib.request
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -12,18 +27,11 @@ from dotenv import load_dotenv
 
 from axme import AxmeClient, AxmeClientConfig
 
+
 # ---------------------------------------------------------------------------
-# Approval scenarios
+# Scenarios
 # ---------------------------------------------------------------------------
-# Each scenario uses the same two-thread flow:
-#   - main thread:     creates intent, drives auto steps, handles human input
-#   - approver thread: calls resume_intent on behalf of each reviewer
-#
-# Ball tracking legend printed during run:
-#   ⚙  [process-agent]  — automated reviewer holds the ball
-#   👤 [human]          — human reviewer holds the ball
-#   🟢 [done]           — intent completed
-# ---------------------------------------------------------------------------
+
 SCENARIOS: dict[str, dict[str, Any]] = {
     "1": {
         "title":   "nginx config rollout → prod-cluster-eu",
@@ -31,47 +39,41 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "intent_type": "intent.approval.change_mgmt.v1",
         "auto_steps": [
             {
-                "actor":    "process:change-validator",
-                "label":    "change-validator",
-                "reviewing": "verifying maintenance window and rollback plan...",
+                "label":     "change-validator",
+                "actor":     "process:change-validator",
+                "reviewing": "verifying maintenance window and rollback plan",
                 "approved":  "maintenance window confirmed, rollback plan verified",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
             {
-                "actor":    "process:impact-assessor",
-                "label":    "impact-assessor",
-                "reviewing": "assessing blast radius and service dependencies...",
+                "label":     "impact-assessor",
+                "actor":     "process:impact-assessor",
+                "reviewing": "assessing blast radius and service dependencies",
                 "approved":  "blast radius: low, zero downtime deployment confirmed",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
         ],
-        "human_role":         "Change Advisory Board (CAB)",
-        "human_label":        "CAB",
-        "human_waiting_reason": "WAITING_FOR_HUMAN",
+        "human_role":  "Change Advisory Board (CAB)",
+        "human_label": "CAB",
     },
     "2": {
         "title":   "$47,500 cloud infrastructure budget — Q2 expansion",
-        "summary": "Budget approval request: $47,500 cloud infrastructure Q2 expansion (BUD-2024-Q2-EU)",
+        "summary": "Budget approval: $47,500 cloud infrastructure Q2 expansion (BUD-2024-Q2-EU)",
         "intent_type": "intent.approval.finance.v1",
         "auto_steps": [
             {
-                "actor":    "process:budget-validator",
-                "label":    "budget-validator",
-                "reviewing": "validating budget envelope against Q2 allocation...",
+                "label":     "budget-validator",
+                "actor":     "process:budget-validator",
+                "reviewing": "validating budget envelope against Q2 allocation",
                 "approved":  "within Q2 envelope, 12% headroom remaining",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
             {
-                "actor":    "process:cost-estimator",
-                "label":    "cost-estimator",
-                "reviewing": "cross-checking vendor quotes and 12-month TCO...",
+                "label":     "cost-estimator",
+                "actor":     "process:cost-estimator",
+                "reviewing": "cross-checking vendor quotes and 12-month TCO",
                 "approved":  "3 vendor quotes validated, TCO within 5% of estimate",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
         ],
-        "human_role":         "CFO / Finance Committee",
-        "human_label":        "CFO",
-        "human_waiting_reason": "WAITING_FOR_HUMAN",
+        "human_role":  "CFO / Finance Committee",
+        "human_label": "CFO",
     },
     "3": {
         "title":   "READ access to prod-db-eu-west-1 for svc:data-pipeline",
@@ -79,182 +81,259 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "intent_type": "intent.approval.access_mgmt.v1",
         "auto_steps": [
             {
-                "actor":    "process:access-policy-checker",
-                "label":    "access-policy-checker",
-                "reviewing": "verifying service identity and least-privilege policy...",
+                "label":     "access-policy-checker",
+                "actor":     "process:access-policy-checker",
+                "reviewing": "verifying service identity and least-privilege policy",
                 "approved":  "service identity verified, READ-only scope within policy",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
             {
-                "actor":    "process:risk-assessor",
-                "label":    "risk-assessor",
-                "reviewing": "evaluating data sensitivity and audit trail coverage...",
+                "label":     "risk-assessor",
+                "actor":     "process:risk-assessor",
+                "reviewing": "evaluating data sensitivity and audit trail coverage",
                 "approved":  "PII fields excluded, audit logging active on target DB",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
         ],
-        "human_role":         "Security Officer / DBA",
-        "human_label":        "Security Officer",
-        "human_waiting_reason": "WAITING_FOR_HUMAN",
+        "human_role":  "Security Officer / DBA",
+        "human_label": "Security Officer",
     },
     "4": {
-        "title":   "AI agent action: send contract to client (Acme Corp, $120k)",
+        "title":   "AI agent action: send contract to Acme Corp ($120k)",
         "summary": "AI agent requests permission to send $120k contract to Acme Corp (CONTRACT-AC-2024-001)",
         "intent_type": "intent.approval.ai_oversight.v1",
         "auto_steps": [
             {
-                "actor":    "process:contract-validator",
-                "label":    "contract-validator",
-                "reviewing": "validating contract terms, signatures and entity details...",
+                "label":     "contract-validator",
+                "actor":     "process:contract-validator",
+                "reviewing": "validating contract terms, signatures and entity details",
                 "approved":  "contract terms valid, entities match CRM records",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
             {
-                "actor":    "process:compliance-checker",
-                "label":    "compliance-checker",
-                "reviewing": "running compliance checks (AML, sanctions, jurisdiction)...",
+                "label":     "compliance-checker",
+                "actor":     "process:compliance-checker",
+                "reviewing": "running compliance checks (AML, sanctions, jurisdiction)",
                 "approved":  "AML clear, no sanctions hits, jurisdiction confirmed",
-                "waiting_reason": "WAITING_FOR_AGENT",
             },
         ],
-        "human_role":         "Account Executive / Legal",
-        "human_label":        "Account Executive",
-        "human_waiting_reason": "WAITING_FOR_HUMAN",
+        "human_role":  "Account Executive / Legal",
+        "human_label": "Account Executive",
     },
 }
 
 
-def _read_cli_key_from_secrets(context: str = "default") -> str:
-    import json, pathlib
-    secrets_path = pathlib.Path.home() / ".config" / "axme" / "secrets.json"
+# ---------------------------------------------------------------------------
+# CLI secrets helpers
+# ---------------------------------------------------------------------------
+
+def _read_cli_secrets(context: str = "default") -> dict[str, str]:
+    secrets_path = Path.home() / ".config" / "axme" / "secrets.json"
     try:
         data = json.loads(secrets_path.read_text())
-        key = (data.get(context) or data.get("default") or {}).get("api_key", "").strip()
-        return key
+        return dict(data.get(context) or data.get("default") or {})
     except Exception:
-        return ""
+        return {}
 
 
-def _require_env(name: str) -> str:
-    value = os.getenv(name, "").strip()
-    if not value and name == "AXME_API_KEY":
-        value = _read_cli_key_from_secrets()
+def _require_api_key() -> str:
+    value = os.getenv("AXME_API_KEY", "").strip()
     if not value:
-        raise RuntimeError(
-            f"{name} is not set. Run 'axme login' to sign in, then:\n"
-            f"  export {name}=$(axme context show --show-key --json | jq -r .api_key)"
-        )
+        value = _read_cli_secrets().get("api_key", "").strip()
+    if not value:
+        print()
+        print("  Not signed in. Run:  axme login")
+        print()
+        raise SystemExit(1)
     return value
 
 
+# ---------------------------------------------------------------------------
+# Pretty output helpers
+# ---------------------------------------------------------------------------
+
+STATUS_LABEL: dict[str, str] = {
+    "DELIVERED":   "delivered",
+    "IN_PROGRESS": "in progress",
+    "WAITING":     "waiting",
+    "COMPLETED":   "completed",
+    "FAILED":      "failed",
+    "CANCELED":    "cancelled",
+}
+
+HOLDER_LABEL: dict[str, str] = {
+    "WAITING_FOR_HUMAN": "human reviewer",
+    "WAITING_FOR_AGENT": "automated agent",
+    "WAITING_FOR_TOOL":  "tool",
+    "WAITING_FOR_TIME":  "timer",
+}
+
+
+def _p(tag: str, msg: str, *, indent: int = 0) -> None:
+    pad = "  " * indent
+    print(f"{pad}[{tag}]  {msg}", flush=True)
+
+
+def _step(num: int, total: int, icon: str, title: str, note: str) -> None:
+    print(f"\n  step {num}/{total}  {icon}  {title}", flush=True)
+    print(f"           {note}", flush=True)
+
+
+def _status(label: str, holder: str = "") -> None:
+    line = f"  status    {label}"
+    if holder:
+        line += f"  •  управление: {holder}"
+    print(line, flush=True)
+
+
+def _divider() -> None:
+    print("  " + "─" * 58, flush=True)
+
+
+def _pause(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+# ---------------------------------------------------------------------------
+# Agent setup
+# ---------------------------------------------------------------------------
+
+def _resolve_org_workspace(
+    base_url: str,
+    api_key: str,
+    actor_token: str | None,
+) -> tuple[str | None, str | None]:
+    """Return (org_id, workspace_id) from env overrides or personal context."""
+    org_id       = os.getenv("AXME_ORG_ID", "").strip() or None
+    workspace_id = os.getenv("AXME_WORKSPACE_ID", "").strip() or None
+    if org_id and workspace_id:
+        return org_id, workspace_id
+    if not actor_token:
+        return org_id, workspace_id
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/v1/portal/personal/context",
+            headers={
+                "X-Api-Key":     api_key,
+                "Authorization": f"Bearer {actor_token}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            ctx = json.loads(resp.read()).get("context") or {}
+        org_id       = org_id       or ctx.get("org_id", "").strip() or None
+        workspace_id = workspace_id or ctx.get("workspace_id", "").strip() or None
+    except Exception:
+        pass
+    return org_id, workspace_id
+
+
+def _ensure_approver_agent(
+    client: AxmeClient,
+    org_id: str,
+    workspace_id: str,
+) -> str:
+    """
+    Return agent_address of an existing SA with agent_address, or create one.
+    Printed progress goes to stdout so the user sees it.
+    """
+    # 1. Look for an existing agent
+    try:
+        sa_resp = client.list_service_accounts(org_id=org_id, workspace_id=workspace_id)
+        for sa in sa_resp.get("service_accounts") or []:
+            addr = (sa.get("agent_address") or "").strip()
+            if addr:
+                return addr
+    except Exception:
+        pass
+
+    # 2. Create a new one
+    sa_name = f"approver-{int(time.time())}"
+    print(f"           создаю агент  {sa_name} …", flush=True)
+    new_sa = client.create_service_account(
+        {
+            "name":        sa_name,
+            "org_id":      org_id,
+            "workspace_id": workspace_id,
+            "description": "approver agent — создан примером approval-workflow",
+        },
+        idempotency_key=f"example-approver-{org_id}-{workspace_id}",
+    )
+    addr = (new_sa.get("agent_address") or "").strip()
+    if not addr:
+        raise RuntimeError("сервер не вернул agent_address для нового SA")
+    return addr
+
+
+# ---------------------------------------------------------------------------
+# Resume worker (background thread)
+# ---------------------------------------------------------------------------
+
+class _ResumeTask:
+    def __init__(
+        self,
+        intent_id: str,
+        actor: str,
+        reason: str,
+        owner_agent: str,
+        *,
+        delay: float = 0.0,
+        gate: threading.Event | None = None,
+    ) -> None:
+        self.intent_id  = intent_id
+        self.actor      = actor
+        self.reason     = reason
+        self.owner_agent = owner_agent
+        self.delay      = delay
+        self.gate       = gate
+        self.done       = threading.Event()
+        self.error: Exception | None = None
+
+
+def _resume_worker(
+    client: AxmeClient,
+    q: "queue.Queue[_ResumeTask | None]",
+) -> None:
+    while True:
+        task = q.get()
+        if task is None:
+            break
+        try:
+            if task.gate:
+                task.gate.wait()
+            elif task.delay:
+                time.sleep(task.delay)
+            client.resume_intent(
+                task.intent_id,
+                {"approve_current_step": True, "reason": task.reason, "actor": task.actor},
+                owner_agent=task.owner_agent,
+            )
+        except Exception as exc:
+            task.error = exc
+        finally:
+            task.done.set()
+            q.task_done()
+
+
+# ---------------------------------------------------------------------------
+# Scenario picker
+# ---------------------------------------------------------------------------
+
 def _pick_scenario() -> dict[str, Any]:
-    scenario_env = os.getenv("SCENARIO", "").strip()
-    if scenario_env in SCENARIOS:
-        return SCENARIOS[scenario_env]
-
+    env = os.getenv("SCENARIO", "").strip()
+    if env in SCENARIOS:
+        return SCENARIOS[env]
     print()
-    print("  Select a scenario:")
+    print("  Выберите сценарий:")
     print()
-    for key, s in SCENARIOS.items():
-        print(f"    {key}.  {s['title']}")
+    for k, s in SCENARIOS.items():
+        print(f"    {k}.  {s['title']}")
     print()
-
     while True:
         try:
-            choice = input("  Enter number (1–4): ").strip()
+            choice = input("  Введите номер (1–4): ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             raise SystemExit(0)
         if choice in SCENARIOS:
             return SCENARIOS[choice]
-        print("  Please enter 1, 2, 3, or 4.")
-
-
-# ---------------------------------------------------------------------------
-# Approver worker thread
-# ---------------------------------------------------------------------------
-
-class _ApprovalRequest:
-    def __init__(
-        self,
-        intent_id: str,
-        *,
-        step_label: str,
-        actor: str,
-        reason: str,
-        review_delay: float = 2.0,
-        human_input_event: threading.Event | None = None,
-    ) -> None:
-        self.intent_id         = intent_id
-        self.step_label        = step_label
-        self.actor             = actor
-        self.reason            = reason
-        self.review_delay      = review_delay
-        self.human_input_event = human_input_event
-        self.done_event        = threading.Event()
-        self.error: Exception | None = None
-
-
-def _approver_worker(
-    client: AxmeClient,
-    work_queue: "queue.Queue[_ApprovalRequest | None]",
-) -> None:
-    while True:
-        item = work_queue.get()
-        if item is None:
-            break
-        try:
-            if item.human_input_event is not None:
-                item.human_input_event.wait()
-            else:
-                time.sleep(item.review_delay)
-            client.resume_intent(
-                item.intent_id,
-                {
-                    "approve_current_step": True,
-                    "reason":               item.reason,
-                    "actor":                item.actor,
-                },
-            )
-        except Exception as exc:  # noqa: BLE001
-            item.error = exc
-        finally:
-            item.done_event.set()
-            work_queue.task_done()
-
-
-# ---------------------------------------------------------------------------
-# Output helpers
-# ---------------------------------------------------------------------------
-
-_WAITING_REASON_LABEL: dict[str, str] = {
-    "WAITING_FOR_HUMAN": "waiting for human",
-    "WAITING_FOR_AGENT": "waiting for agent",
-    "WAITING_FOR_TOOL":  "waiting for tool",
-    "WAITING_FOR_TIME":  "waiting for time",
-}
-
-
-def _format_status(status: str, waiting_reason: str = "") -> str:
-    if status == "WAITING" and waiting_reason:
-        label = _WAITING_REASON_LABEL.get(waiting_reason, waiting_reason.lower())
-        return f"WAITING  ({label})"
-    return status
-
-
-def _print_ball(holder: str, note: str = "") -> None:
-    """Print a single 'ball at' line showing who has execution control."""
-    suffix = f"  — {note}" if note else ""
-    print(f"  🎾 ball at  {holder}{suffix}")
-
-
-def _print_status_line(prev: str | None, status: str, waiting_reason: str = "") -> str:
-    current = _format_status(status, waiting_reason)
-    if prev is None:
-        print(f"  status     {current}")
-    elif prev.split()[0] != current.split()[0]:
-        print(f"  status     {prev} → {current}")
-    return current
+        print("  Введите 1, 2, 3 или 4.")
 
 
 # ---------------------------------------------------------------------------
@@ -265,167 +344,157 @@ def main() -> None:
     load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
     base_url    = os.getenv("AXME_BASE_URL", "https://api.cloud.axme.ai").strip()
-    api_key     = _require_env("AXME_API_KEY")
-    actor_token = os.getenv("AXME_ACTOR_TOKEN", "").strip() or None
-    to_agent    = os.getenv("AXME_TO_AGENT", "").strip() or None
+    cli_secrets = _read_cli_secrets()
+    api_key     = _require_api_key()
+    actor_token = (os.getenv("AXME_ACTOR_TOKEN", "").strip()
+                   or cli_secrets.get("actor_token", "").strip()
+                   or None)
+    to_agent_override = os.getenv("AXME_TO_AGENT", "").strip() or None
 
     scenario    = _pick_scenario()
-    auto_steps: list[dict[str, Any]] = scenario["auto_steps"]
-    human_role: str  = scenario["human_role"]
-    human_label: str = scenario["human_label"]
-    n_steps = len(auto_steps) + 1
+    auto_steps  = scenario["auto_steps"]
+    human_role  = scenario["human_role"]
+    human_label = scenario["human_label"]
+    n_steps     = len(auto_steps) + 1
 
-    config = AxmeClientConfig(base_url=base_url, api_key=api_key, actor_token=actor_token)
+    # SA-scoped config (no actor_token) — owner_scope = SA agent, needed for resume_intent
+    sa_cfg = AxmeClientConfig(base_url=base_url, api_key=api_key)
+    # Personal config — actor_token included, used only to resolve org/workspace
+    personal_cfg = AxmeClientConfig(base_url=base_url, api_key=api_key, actor_token=actor_token)
 
     print()
-    print(f"[scenario]  {scenario['title']}")
-    print(f"[summary]   {scenario['summary']}")
+    print(f"  ══════════════════════════════════════════════════════════")
+    print(f"  Сценарий:  {scenario['title']}")
+    print(f"  Запрос:    {scenario['summary']}")
+    print(f"  ══════════════════════════════════════════════════════════")
     print()
 
-    # ── Resolve agent addresses from registry ─────────────────────────────
-    # The from_agent is derived automatically by the server from the API key.
-    # to_agent should be set via AXME_TO_AGENT env var (agent://org/ws/name).
-    # If not set, we print guidance and pick the first registered agent.
-    with AxmeClient(config) as probe:
-        org_id       = os.getenv("AXME_ORG_ID", "").strip() or None
-        workspace_id = os.getenv("AXME_WORKSPACE_ID", "").strip() or None
+    # ── Phase 1: resolve org/workspace ────────────────────────────────────
+    _p("подготовка", "определяю организацию и рабочее пространство…")
+    org_id, workspace_id = _resolve_org_workspace(base_url, api_key, actor_token)
+    if not org_id or not workspace_id:
+        print()
+        print("  Не удалось определить org_id / workspace_id.")
+        print("  Задайте переменные AXME_ORG_ID и AXME_WORKSPACE_ID, либо выполните 'axme login'.")
+        print()
+        raise SystemExit(1)
+    _p("подготовка", f"org={org_id}  workspace={workspace_id}")
+    _pause(0.4)
 
-        if to_agent is None and org_id and workspace_id:
-            try:
-                agents_resp = probe.list_agents(org_id=org_id, workspace_id=workspace_id)
-                agents      = agents_resp.get("agents") or []
-                if agents and isinstance(agents, list):
-                    first = agents[0]
-                    if isinstance(first, dict):
-                        to_agent = str(first.get("address", ""))
-            except Exception:  # noqa: BLE001
-                pass
+    # ── Phase 2: ensure approver agent ────────────────────────────────────
+    with AxmeClient(personal_cfg) as probe:
+        if to_agent_override:
+            approver_address = to_agent_override
+            _p("агент", f"используется AXME_TO_AGENT={approver_address}")
+        else:
+            _p("агент", "ищу зарегистрированного approver-агента…")
+            approver_address = _ensure_approver_agent(probe, org_id, workspace_id)
+            _p("агент", f"approver → {approver_address}")
+        _pause(0.4)
 
-        if to_agent is None:
-            print(
-                "[hint]  AXME_TO_AGENT not set. Set it to the agent address that should receive\n"
-                "        this intent, e.g.:\n"
-                "          export AXME_TO_AGENT=agent://acme-corp/production/approver\n"
-                "        or set AXME_ORG_ID + AXME_WORKSPACE_ID to auto-pick from registry.\n"
-                "        Proceeding without to_agent (server may reject or route internally).\n"
-            )
-
-    print(f"[agent]     to_agent={to_agent or '(not set, derived by server)'}")
-    print(f"[agent]     from_agent=(derived from API key)")
-    print(f"[steps]     {n_steps} approval steps: {len(auto_steps)} automated + 1 human ({human_label})")
-    print()
-
+    # ── Phase 3: create intent ────────────────────────────────────────────
     correlation_id  = str(uuid4())
     idempotency_key = f"approval-{correlation_id}"
 
     intent_payload: dict[str, Any] = {
         "intent_type":    scenario["intent_type"],
         "correlation_id": correlation_id,
+        "to_agent":       approver_address,
         "payload": {
             "request_id":    f"req-{correlation_id[:8]}",
             "summary":       scenario["summary"],
             "approval_mode": "manual",
         },
     }
-    if to_agent:
-        intent_payload["to_agent"] = to_agent
 
-    work_queue: queue.Queue[_ApprovalRequest | None] = queue.Queue()
+    resume_q: queue.Queue[_ResumeTask | None] = queue.Queue()
 
-    with AxmeClient(config) as client:
-
-        approver_thread = threading.Thread(
-            target=_approver_worker,
-            args=(client, work_queue),
+    with AxmeClient(sa_cfg) as client:
+        resume_thread = threading.Thread(
+            target=_resume_worker,
+            args=(client, resume_q),
             daemon=True,
         )
-        approver_thread.start()
+        resume_thread.start()
 
         try:
-            # ── Create intent ──────────────────────────────────────────────
-            created   = client.create_intent(
+            _p("интент", "отправляю запрос на согласование…")
+            created = client.create_intent(
                 intent_payload,
                 correlation_id=correlation_id,
                 idempotency_key=idempotency_key,
             )
-            intent_id = str(created["intent_id"])
-            init_status = str(created.get("status", ""))
-            print(f"[create]    intent_id={intent_id}")
-            last_status = _print_status_line(None, init_status)
-            _print_ball("requester (this process)")
-            next_since = 0
+            intent_id   = str(created["intent_id"])
+            init_status = str(created.get("lifecycle_status") or created.get("status") or "")
+            _p("интент", f"создан  id={intent_id}")
+            _status(STATUS_LABEL.get(init_status, init_status), "отправитель (этот процесс)")
+            _pause(0.6)
 
-            # ── Automated approval steps ───────────────────────────────────
+            # ── Automated steps ───────────────────────────────────────────
             for i, step in enumerate(auto_steps, start=1):
-                print()
-                print(f"[step {i}/{n_steps}]  ⚙  {step['label']} — {step['reviewing']}")
-                _print_ball(f"process-agent:{step['label']}")
+                _step(i, n_steps, "⚙", step["label"], step["reviewing"] + "…")
+                _status("ожидание", f"агент  {step['label']}")
+                _pause(0.5)
 
-                req = _ApprovalRequest(
-                    intent_id=intent_id,
-                    step_label=f"step {i}/{n_steps}",
-                    actor=step["actor"],
-                    reason=f"{step['actor']} approved — {step['approved']}",
-                    review_delay=2.0,
+                task = _ResumeTask(
+                    intent_id    = intent_id,
+                    actor        = step["actor"],
+                    reason       = f"{step['actor']} approved — {step['approved']}",
+                    owner_agent  = approver_address,
+                    delay        = 1.5,
                 )
-                work_queue.put(req)
+                resume_q.put(task)
+                task.done.wait(timeout=20)
 
-                req.done_event.wait(timeout=15)
-                if req.error:
-                    print(f"  [warn]    approver step {i} error: {req.error}")
+                if task.error:
+                    print(f"  [!] ошибка на шаге {i}: {task.error}", flush=True)
+                    raise RuntimeError(f"шаг {i} не прошёл: {task.error}")
 
-                updated = client.get_intent(intent_id).get("intent", {})
-                cur = str(updated.get("lifecycle_status") or updated.get("status") or last_status)
-                last_status = _print_status_line(last_status, cur)
+                updated      = client.get_intent(intent_id).get("intent", {})
+                cur_status   = str(updated.get("lifecycle_status") or updated.get("status") or "")
+                waiting_reas = str(updated.get("lifecycle_waiting_reason") or "")
+                _status(STATUS_LABEL.get(cur_status, cur_status))
+                print(f"  ✓  {step['approved']}", flush=True)
+                _pause(0.8)
 
-                listed = client.list_intent_events(intent_id)
-                for ev in (listed.get("events") or []):
-                    seq = ev.get("seq")
-                    if isinstance(seq, int):
-                        next_since = max(next_since, seq)
+            # ── Human step ────────────────────────────────────────────────
+            hs = n_steps
+            _step(hs, n_steps, "👤", human_role, "ожидаю решения человека…")
+            _status("пауза — ожидание", "человек")
+            _divider()
+            print(f"\n  Вы выступаете в роли:  {human_role}")
+            print(f"  Нажмите Enter чтобы одобрить, или Ctrl+C чтобы отменить.\n")
 
-                print(f"  [approved] {step['label']}  ✓  {step['approved']}")
-                _print_ball("requester (this process)", "moving to next step")
-                time.sleep(0.5)
-
-            # ── Human approval step ────────────────────────────────────────
-            human_step = len(auto_steps) + 1
-            print()
-            print(f"[step {human_step}/{n_steps}]  👤  {human_role} — waiting for sign-off")
-            _print_ball(f"human:{human_label}")
-            print()
-            print(f"           Intent is paused. You are acting as {human_role}.")
-            print(f"           Press Enter to approve, or Ctrl+C to cancel.")
-            print()
-
-            human_event = threading.Event()
-
-            human_req = _ApprovalRequest(
-                intent_id=intent_id,
-                step_label=f"step {human_step}/{n_steps}",
-                actor=f"human:{human_label}",
-                reason=f"approved by {human_role}",
-                human_input_event=human_event,
+            human_gate = threading.Event()
+            human_task = _ResumeTask(
+                intent_id   = intent_id,
+                actor       = f"human:{human_label}",
+                reason      = f"одобрено — {human_role}",
+                owner_agent = approver_address,
+                gate        = human_gate,
             )
-            work_queue.put(human_req)
+            resume_q.put(human_task)
 
             try:
-                input("           > ")
+                input("  > ")
             except (EOFError, KeyboardInterrupt):
-                print("\n[cancelled]  approval cancelled")
-                work_queue.put(None)
-                return
+                print("\n  [отмена]  согласование отменено пользователем.")
+                resume_q.put(None)
+                raise SystemExit(0)
 
-            print()
-            print(f"[approved]  {human_role} confirmed — resuming intent")
-            _print_ball("requester (this process)", "human approved, calling resume")
-            human_event.set()
+            print(flush=True)
+            _p("решение", f"{human_role} подтвердил(а) — продолжаю…")
+            human_gate.set()
 
-            human_req.done_event.wait(timeout=10)
-            if human_req.error:
-                print(f"  [warn]    human approval error: {human_req.error}")
+            human_task.done.wait(timeout=15)
+            if human_task.error:
+                print(f"  [!] ошибка human-шага: {human_task.error}", flush=True)
+                raise RuntimeError(f"human-шаг не прошёл: {human_task.error}")
 
-            # ── Resolve ────────────────────────────────────────────────────
+            _pause(0.6)
+
+            # ── Resolve intent ────────────────────────────────────────────
+            _p("завершение", "закрываю интент со статусом COMPLETED…")
             client.resolve_intent(
                 intent_id,
                 {
@@ -437,35 +506,38 @@ def main() -> None:
                     },
                 },
             )
-            _print_ball("server", "resolve_intent called → terminal event incoming")
+            _pause(0.5)
 
-            # ── Observe terminal event ─────────────────────────────────────
+            # ── Wait for terminal event ───────────────────────────────────
+            final_status = "COMPLETED"
             try:
-                for event in client.observe(intent_id, since=next_since, timeout_seconds=15):
-                    seq = event.get("seq")
-                    if isinstance(seq, int):
-                        next_since = max(next_since, seq)
-                    ev_status      = str(event.get("status", ""))
-                    waiting_reason = str(event.get("waiting_reason") or "")
-                    last_status    = _print_status_line(last_status, ev_status, waiting_reason)
+                for event in client.observe(intent_id, since=0, timeout_seconds=10):
+                    ev_status = str(event.get("status") or "")
                     if ev_status in {"COMPLETED", "FAILED", "CANCELED"}:
-                        _print_ball("🟢 done", f"intent reached terminal state {ev_status}")
+                        final_status = ev_status
                         break
-            except TimeoutError:
+            except Exception:
                 pass
 
-        finally:
-            work_queue.put(None)
-            approver_thread.join(timeout=5)
+            # ── Final report ──────────────────────────────────────────────
+            print()
+            _divider()
+            print()
+            print(f"  Итог:")
+            print(f"    Сценарий:    {scenario['title']}")
+            print(f"    Intent ID:   {intent_id}")
+            print(f"    Статус:      {STATUS_LABEL.get(final_status, final_status).upper()}")
+            print(f"    Одобрил:     {human_role}")
+            print()
+            print(f"  Проверить через CLI:")
+            print(f"    axme intents get {intent_id}")
+            print(f"    axme intents watch {intent_id}")
+            print(f"    axme quota show")
+            print()
 
-        # ── Final summary ──────────────────────────────────────────────────
-        print()
-        print(f"[done]    intent_id={intent_id}  status={last_status.split()[0]}")
-        print()
-        print("  Explore via CLI:")
-        print(f"    axme intents get {intent_id}")
-        print(f"    axme intents watch {intent_id}   # replay lifecycle events")
-        print( "    axme quota show")
+        finally:
+            resume_q.put(None)
+            resume_thread.join(timeout=5)
 
 
 if __name__ == "__main__":
