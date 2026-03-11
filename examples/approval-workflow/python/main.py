@@ -175,10 +175,23 @@ def _log(tag: str, msg: str) -> None:
     print(f"  [{tag}]  {msg}", flush=True)
 
 
-def _transition(prev: str, nxt: str) -> None:
-    """Print a status transition arrow.  Only prints if the state actually changed."""
-    if prev != nxt:
-        print(f"  status    {prev}  →  {nxt}", flush=True)
+def _transition(
+    prev_status: str,
+    nxt_status: str,
+    prev_holder: str = "",
+    nxt_holder: str = "",
+) -> None:
+    """Print combined status + holder transition. Only prints if something changed."""
+    status_changed = prev_status != nxt_status
+    holder_changed = prev_holder != nxt_holder and (prev_holder or nxt_holder)
+    if not status_changed and not holder_changed:
+        return
+    if status_changed:
+        print(f"  status  {prev_status}  →  {nxt_status}", flush=True)
+    if holder_changed:
+        ph = prev_holder or "—"
+        nh = nxt_holder  or "—"
+        print(f"  with    {ph}  →  {nh}", flush=True)
 
 
 def _divider() -> None:
@@ -446,20 +459,22 @@ def main() -> None:
             cur_status  = _fmt_status(
                 str(created.get("lifecycle_status") or created.get("status") or "DELIVERED")
             )
+            cur_holder  = f"requester ({requester_addr.split('/')[-1]})"
             _log("intent", f"created  id={intent_id}")
-            print(f"  status    {cur_status}  •  with: requester ({requester_addr.split('/')[-1]})")
+            print(f"  status  {cur_status}  •  with: {cur_holder}", flush=True)
             _pause(0.6)
 
             # ── Automated steps ───────────────────────────────────────────
             for i, step in enumerate(auto_steps, start=1):
                 print()
                 print(f"  ── step {i}/{n_steps}  ⚙  {step['label']} ──────────────────────────────")
-                print(f"     task:    {step['reviewing']}")
-                print(f"     with:    {approver_addr.split('/')[-1]}")
+                print(f"     task:  {step['reviewing']}")
 
                 prev_status = cur_status
+                prev_holder = cur_holder
                 cur_status  = _fmt_status("WAITING", "WAITING_FOR_AGENT")
-                _transition(prev_status, cur_status)
+                cur_holder  = f"agent ({step['label']})"
+                _transition(prev_status, cur_status, prev_holder, cur_holder)
                 _pause(0.4)
 
                 task = _ResumeTask(
@@ -481,20 +496,24 @@ def main() -> None:
                     str(updated.get("lifecycle_status") or updated.get("status") or ""),
                     str(updated.get("lifecycle_waiting_reason") or ""),
                 )
-                _transition(cur_status, new_status)
-                cur_status = new_status
-                print(f"     result:  ✓  {step['approved']}")
+                prev_status = cur_status
+                prev_holder = cur_holder
+                cur_status  = new_status
+                cur_holder  = f"requester ({requester_addr.split('/')[-1]})"
+                _transition(prev_status, cur_status, prev_holder, cur_holder)
+                print(f"     ✓  {step['approved']}", flush=True)
                 _pause(0.7)
 
             # ── Human step ────────────────────────────────────────────────
             print()
             print(f"  ── step {n_steps}/{n_steps}  👤  {human_role} ──────────────────────────────")
-            print(f"     task:    manual sign-off required")
-            print(f"     with:    you ({human_role})")
+            print(f"     task:  manual sign-off required")
 
             prev_status = cur_status
+            prev_holder = cur_holder
             cur_status  = _fmt_status("WAITING", "WAITING_FOR_HUMAN")
-            _transition(prev_status, cur_status)
+            cur_holder  = f"human ({human_label})"
+            _transition(prev_status, cur_status, prev_holder, cur_holder)
 
             _divider()
             print()
@@ -529,8 +548,10 @@ def main() -> None:
                 raise RuntimeError(f"human step failed: {human_task.error}")
 
             prev_status = cur_status
+            prev_holder = cur_holder
             cur_status  = _fmt_status("IN_PROGRESS")
-            _transition(prev_status, cur_status)
+            cur_holder  = f"requester ({requester_addr.split('/')[-1]})"
+            _transition(prev_status, cur_status, prev_holder, cur_holder)
             _pause(0.5)
 
             # ── Resolve ───────────────────────────────────────────────────
@@ -560,8 +581,10 @@ def main() -> None:
                 pass
 
             prev_status = cur_status
+            prev_holder = cur_holder
             cur_status  = _fmt_status(final_status)
-            _transition(prev_status, cur_status)
+            cur_holder  = "done"
+            _transition(prev_status, cur_status, prev_holder, cur_holder)
 
             # ── Summary ───────────────────────────────────────────────────
             print()
