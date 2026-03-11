@@ -1,21 +1,23 @@
 """
 approval-workflow — Axme SDK example
 =====================================
-Demonstrates a multi-step approval flow through the Axme intent system.
+Demonstrates a 3-step approval flow (2 automated + 1 human) via the Axme
+intent system. Two service-account agents are created on first run:
+  • example-requester  — sends the approval request
+  • example-approver   — receives and processes it through all review steps
 
 Run:
-    python main.py                   # interactive scenario picker
-    SCENARIO=1 python main.py        # skip the picker
+    python main.py              # interactive scenario picker
+    SCENARIO=1 python main.py   # skip the picker
 
 Prerequisites:
-    axme login                       # one-time sign-in — no env export needed
+    axme login                  # one-time; no env export needed afterwards
 """
 from __future__ import annotations
 
 import json
 import os
 import queue
-import sys
 import time
 import threading
 import urllib.request
@@ -29,7 +31,7 @@ from axme import AxmeClient, AxmeClientConfig
 
 
 # ---------------------------------------------------------------------------
-# Scenarios
+# Scenarios  (only scenario 1 is fully wired; 2-4 kept for later)
 # ---------------------------------------------------------------------------
 
 SCENARIOS: dict[str, dict[str, Any]] = {
@@ -121,7 +123,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
 
 
 # ---------------------------------------------------------------------------
-# CLI secrets helpers
+# CLI secrets
 # ---------------------------------------------------------------------------
 
 def _read_cli_secrets(context: str = "default") -> dict[str, str]:
@@ -138,61 +140,57 @@ def _require_api_key() -> str:
     if not value:
         value = _read_cli_secrets().get("api_key", "").strip()
     if not value:
-        print()
-        print("  Not signed in. Run:  axme login")
-        print()
+        print("\n  Not signed in. Run:  axme login\n")
         raise SystemExit(1)
     return value
 
 
 # ---------------------------------------------------------------------------
-# Pretty output helpers
+# Output helpers
 # ---------------------------------------------------------------------------
 
-STATUS_LABEL: dict[str, str] = {
-    "DELIVERED":   "delivered",
-    "IN_PROGRESS": "in progress",
-    "WAITING":     "waiting",
-    "COMPLETED":   "completed",
-    "FAILED":      "failed",
-    "CANCELED":    "cancelled",
+_STATUS_LABEL: dict[str, str] = {
+    "DELIVERED":   "DELIVERED",
+    "IN_PROGRESS": "IN_PROGRESS",
+    "WAITING":     "WAITING",
+    "COMPLETED":   "COMPLETED",
+    "FAILED":      "FAILED",
+    "CANCELED":    "CANCELED",
 }
 
-HOLDER_LABEL: dict[str, str] = {
-    "WAITING_FOR_HUMAN": "human reviewer",
-    "WAITING_FOR_AGENT": "automated agent",
-    "WAITING_FOR_TOOL":  "tool",
-    "WAITING_FOR_TIME":  "timer",
+_WAITING_LABEL: dict[str, str] = {
+    "WAITING_FOR_HUMAN": "waiting for human",
+    "WAITING_FOR_AGENT": "waiting for agent",
 }
 
 
-def _p(tag: str, msg: str, *, indent: int = 0) -> None:
-    pad = "  " * indent
-    print(f"{pad}[{tag}]  {msg}", flush=True)
+def _fmt_status(raw: str, waiting_reason: str = "") -> str:
+    s = _STATUS_LABEL.get(raw, raw)
+    if s == "WAITING" and waiting_reason:
+        s += f" ({_WAITING_LABEL.get(waiting_reason, waiting_reason)})"
+    return s
 
 
-def _step(num: int, total: int, icon: str, title: str, note: str) -> None:
-    print(f"\n  step {num}/{total}  {icon}  {title}", flush=True)
-    print(f"           {note}", flush=True)
+def _log(tag: str, msg: str) -> None:
+    print(f"  [{tag}]  {msg}", flush=True)
 
 
-def _status(label: str, holder: str = "") -> None:
-    line = f"  status    {label}"
-    if holder:
-        line += f"  •  управление: {holder}"
-    print(line, flush=True)
+def _transition(prev: str, nxt: str) -> None:
+    """Print a status transition arrow.  Only prints if the state actually changed."""
+    if prev != nxt:
+        print(f"  status    {prev}  →  {nxt}", flush=True)
 
 
 def _divider() -> None:
-    print("  " + "─" * 58, flush=True)
+    print("  " + "─" * 62, flush=True)
 
 
-def _pause(seconds: float) -> None:
-    time.sleep(seconds)
+def _pause(s: float) -> None:
+    time.sleep(s)
 
 
 # ---------------------------------------------------------------------------
-# Agent setup
+# Org / workspace resolution
 # ---------------------------------------------------------------------------
 
 def _resolve_org_workspace(
@@ -200,7 +198,6 @@ def _resolve_org_workspace(
     api_key: str,
     actor_token: str | None,
 ) -> tuple[str | None, str | None]:
-    """Return (org_id, workspace_id) from env overrides or personal context."""
     org_id       = os.getenv("AXME_ORG_ID", "").strip() or None
     workspace_id = os.getenv("AXME_WORKSPACE_ID", "").strip() or None
     if org_id and workspace_id:
@@ -210,10 +207,7 @@ def _resolve_org_workspace(
     try:
         req = urllib.request.Request(
             f"{base_url}/v1/portal/personal/context",
-            headers={
-                "X-Api-Key":     api_key,
-                "Authorization": f"Bearer {actor_token}",
-            },
+            headers={"X-Api-Key": api_key, "Authorization": f"Bearer {actor_token}"},
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             ctx = json.loads(resp.read()).get("context") or {}
@@ -224,41 +218,78 @@ def _resolve_org_workspace(
     return org_id, workspace_id
 
 
-def _ensure_approver_agent(
+# ---------------------------------------------------------------------------
+# Agent provisioning
+# ---------------------------------------------------------------------------
+
+def _find_agent(client: AxmeClient, org_id: str, workspace_id: str, name: str) -> str | None:
+    """Return agent_address of a SA with the given name, or None."""
+    try:
+        resp = client.list_service_accounts(org_id=org_id, workspace_id=workspace_id)
+        for sa in resp.get("service_accounts") or []:
+            if sa.get("name") == name:
+                return (sa.get("agent_address") or "").strip() or None
+    except Exception:
+        pass
+    return None
+
+
+def _create_agent(
     client: AxmeClient,
     org_id: str,
     workspace_id: str,
+    name: str,
+    description: str,
 ) -> str:
-    """
-    Return agent_address of an existing SA with agent_address, or create one.
-    Printed progress goes to stdout so the user sees it.
-    """
-    # 1. Look for an existing agent
-    try:
-        sa_resp = client.list_service_accounts(org_id=org_id, workspace_id=workspace_id)
-        for sa in sa_resp.get("service_accounts") or []:
-            addr = (sa.get("agent_address") or "").strip()
-            if addr:
-                return addr
-    except Exception:
-        pass
-
-    # 2. Create a new one
-    sa_name = f"approver-{int(time.time())}"
-    print(f"           создаю агент  {sa_name} …", flush=True)
-    new_sa = client.create_service_account(
-        {
-            "name":        sa_name,
-            "org_id":      org_id,
-            "workspace_id": workspace_id,
-            "description": "approver agent — создан примером approval-workflow",
-        },
-        idempotency_key=f"example-approver-{org_id}-{workspace_id}",
+    """Create a service account and return its agent_address."""
+    result = client.create_service_account(
+        {"name": name, "org_id": org_id, "workspace_id": workspace_id,
+         "description": description},
+        idempotency_key=f"example-{name}-{org_id}",
     )
-    addr = (new_sa.get("agent_address") or "").strip()
+    # Response is either flat or nested under "service_account"
+    sa = result.get("service_account") or result
+    addr = (sa.get("agent_address") or "").strip()
     if not addr:
-        raise RuntimeError("сервер не вернул agent_address для нового SA")
+        raise RuntimeError(f"server did not return agent_address for '{name}'")
     return addr
+
+
+def _provision_agents(
+    client: AxmeClient,
+    org_id: str,
+    workspace_id: str,
+) -> tuple[str, str]:
+    """
+    Ensure 'example-requester' and 'example-approver' agents exist.
+    Prints one line per agent showing create/reuse and its address.
+    Returns (requester_address, approver_address).
+    """
+    agents: dict[str, dict[str, str]] = {
+        "example-requester": {
+            "role":        "requester",
+            "description": "Sends approval requests — created by approval-workflow example",
+        },
+        "example-approver": {
+            "role":        "approver",
+            "description": "Receives and processes approval intents — created by approval-workflow example",
+        },
+    }
+
+    addresses: dict[str, str] = {}
+    for sa_name, meta in agents.items():
+        existing = _find_agent(client, org_id, workspace_id, sa_name)
+        if existing:
+            _log("agent", f"{meta['role']:12s}  (existing)  {existing}")
+            addresses[sa_name] = existing
+        else:
+            _log("agent", f"{meta['role']:12s}  creating {sa_name} …")
+            addr = _create_agent(client, org_id, workspace_id, sa_name, meta["description"])
+            _log("agent", f"{meta['role']:12s}  created   {addr}")
+            addresses[sa_name] = addr
+        _pause(0.3)
+
+    return addresses["example-requester"], addresses["example-approver"]
 
 
 # ---------------------------------------------------------------------------
@@ -276,20 +307,17 @@ class _ResumeTask:
         delay: float = 0.0,
         gate: threading.Event | None = None,
     ) -> None:
-        self.intent_id  = intent_id
-        self.actor      = actor
-        self.reason     = reason
+        self.intent_id   = intent_id
+        self.actor       = actor
+        self.reason      = reason
         self.owner_agent = owner_agent
-        self.delay      = delay
-        self.gate       = gate
-        self.done       = threading.Event()
+        self.delay       = delay
+        self.gate        = gate
+        self.done        = threading.Event()
         self.error: Exception | None = None
 
 
-def _resume_worker(
-    client: AxmeClient,
-    q: "queue.Queue[_ResumeTask | None]",
-) -> None:
+def _resume_worker(client: AxmeClient, q: "queue.Queue[_ResumeTask | None]") -> None:
     while True:
         task = q.get()
         if task is None:
@@ -320,20 +348,20 @@ def _pick_scenario() -> dict[str, Any]:
     if env in SCENARIOS:
         return SCENARIOS[env]
     print()
-    print("  Выберите сценарий:")
+    print("  Select a scenario:")
     print()
     for k, s in SCENARIOS.items():
         print(f"    {k}.  {s['title']}")
     print()
     while True:
         try:
-            choice = input("  Введите номер (1–4): ").strip()
+            choice = input("  Enter number (1–4): ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             raise SystemExit(0)
         if choice in SCENARIOS:
             return SCENARIOS[choice]
-        print("  Введите 1, 2, 3 или 4.")
+        print("  Please enter 1, 2, 3 or 4.")
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +377,6 @@ def main() -> None:
     actor_token = (os.getenv("AXME_ACTOR_TOKEN", "").strip()
                    or cli_secrets.get("actor_token", "").strip()
                    or None)
-    to_agent_override = os.getenv("AXME_TO_AGENT", "").strip() or None
 
     scenario    = _pick_scenario()
     auto_steps  = scenario["auto_steps"]
@@ -357,49 +384,46 @@ def main() -> None:
     human_label = scenario["human_label"]
     n_steps     = len(auto_steps) + 1
 
-    # SA-scoped config (no actor_token) — owner_scope = SA agent, needed for resume_intent
-    sa_cfg = AxmeClientConfig(base_url=base_url, api_key=api_key)
-    # Personal config — actor_token included, used only to resolve org/workspace
+    # SA-scoped config: owner_scope = SA agent address → allows resume_intent
+    sa_cfg       = AxmeClientConfig(base_url=base_url, api_key=api_key)
+    # Personal config: includes actor_token for portal/personal/context only
     personal_cfg = AxmeClientConfig(base_url=base_url, api_key=api_key, actor_token=actor_token)
 
+    # ── Header ────────────────────────────────────────────────────────────
     print()
-    print(f"  ══════════════════════════════════════════════════════════")
-    print(f"  Сценарий:  {scenario['title']}")
-    print(f"  Запрос:    {scenario['summary']}")
-    print(f"  ══════════════════════════════════════════════════════════")
+    _divider()
+    print(f"  Scenario:  {scenario['title']}")
+    print(f"  Request:   {scenario['summary']}")
+    _divider()
     print()
 
-    # ── Phase 1: resolve org/workspace ────────────────────────────────────
-    _p("подготовка", "определяю организацию и рабочее пространство…")
+    # ── Resolve org / workspace ───────────────────────────────────────────
+    _log("setup", "resolving org and workspace …")
     org_id, workspace_id = _resolve_org_workspace(base_url, api_key, actor_token)
     if not org_id or not workspace_id:
-        print()
-        print("  Не удалось определить org_id / workspace_id.")
-        print("  Задайте переменные AXME_ORG_ID и AXME_WORKSPACE_ID, либо выполните 'axme login'.")
-        print()
+        print("\n  Could not determine org_id / workspace_id.")
+        print("  Set AXME_ORG_ID + AXME_WORKSPACE_ID, or run 'axme login'.\n")
         raise SystemExit(1)
-    _p("подготовка", f"org={org_id}  workspace={workspace_id}")
-    _pause(0.4)
+    _log("setup", f"org={org_id}  workspace={workspace_id}")
+    _pause(0.3)
 
-    # ── Phase 2: ensure approver agent ────────────────────────────────────
+    # ── Provision agents ──────────────────────────────────────────────────
+    print()
+    _log("agents", f"provisioning agents for this scenario ({n_steps} steps) …")
     with AxmeClient(personal_cfg) as probe:
-        if to_agent_override:
-            approver_address = to_agent_override
-            _p("агент", f"используется AXME_TO_AGENT={approver_address}")
-        else:
-            _p("агент", "ищу зарегистрированного approver-агента…")
-            approver_address = _ensure_approver_agent(probe, org_id, workspace_id)
-            _p("агент", f"approver → {approver_address}")
-        _pause(0.4)
+        requester_addr, approver_addr = _provision_agents(probe, org_id, workspace_id)
+    _log("agents", "ready")
+    print()
+    _pause(0.3)
 
-    # ── Phase 3: create intent ────────────────────────────────────────────
+    # ── Create intent ─────────────────────────────────────────────────────
     correlation_id  = str(uuid4())
     idempotency_key = f"approval-{correlation_id}"
 
     intent_payload: dict[str, Any] = {
         "intent_type":    scenario["intent_type"],
         "correlation_id": correlation_id,
-        "to_agent":       approver_address,
+        "to_agent":       approver_addr,
         "payload": {
             "request_id":    f"req-{correlation_id[:8]}",
             "summary":       scenario["summary"],
@@ -410,67 +434,80 @@ def main() -> None:
     resume_q: queue.Queue[_ResumeTask | None] = queue.Queue()
 
     with AxmeClient(sa_cfg) as client:
-        resume_thread = threading.Thread(
-            target=_resume_worker,
-            args=(client, resume_q),
-            daemon=True,
-        )
-        resume_thread.start()
+        worker = threading.Thread(target=_resume_worker, args=(client, resume_q), daemon=True)
+        worker.start()
 
         try:
-            _p("интент", "отправляю запрос на согласование…")
-            created = client.create_intent(
-                intent_payload,
-                correlation_id=correlation_id,
-                idempotency_key=idempotency_key,
-            )
+            _log("intent", "sending approval request to server …")
+            created     = client.create_intent(intent_payload,
+                                               correlation_id=correlation_id,
+                                               idempotency_key=idempotency_key)
             intent_id   = str(created["intent_id"])
-            init_status = str(created.get("lifecycle_status") or created.get("status") or "")
-            _p("интент", f"создан  id={intent_id}")
-            _status(STATUS_LABEL.get(init_status, init_status), "отправитель (этот процесс)")
+            cur_status  = _fmt_status(
+                str(created.get("lifecycle_status") or created.get("status") or "DELIVERED")
+            )
+            _log("intent", f"created  id={intent_id}")
+            print(f"  status    {cur_status}  •  with: requester ({requester_addr.split('/')[-1]})")
             _pause(0.6)
 
             # ── Automated steps ───────────────────────────────────────────
             for i, step in enumerate(auto_steps, start=1):
-                _step(i, n_steps, "⚙", step["label"], step["reviewing"] + "…")
-                _status("ожидание", f"агент  {step['label']}")
-                _pause(0.5)
+                print()
+                print(f"  ── step {i}/{n_steps}  ⚙  {step['label']} ──────────────────────────────")
+                print(f"     task:    {step['reviewing']}")
+                print(f"     with:    {approver_addr.split('/')[-1]}")
+
+                prev_status = cur_status
+                cur_status  = _fmt_status("WAITING", "WAITING_FOR_AGENT")
+                _transition(prev_status, cur_status)
+                _pause(0.4)
 
                 task = _ResumeTask(
-                    intent_id    = intent_id,
-                    actor        = step["actor"],
-                    reason       = f"{step['actor']} approved — {step['approved']}",
-                    owner_agent  = approver_address,
-                    delay        = 1.5,
+                    intent_id   = intent_id,
+                    actor       = step["actor"],
+                    reason      = f"{step['actor']} approved — {step['approved']}",
+                    owner_agent = approver_addr,
+                    delay       = 1.8,
                 )
                 resume_q.put(task)
                 task.done.wait(timeout=20)
 
                 if task.error:
-                    print(f"  [!] ошибка на шаге {i}: {task.error}", flush=True)
-                    raise RuntimeError(f"шаг {i} не прошёл: {task.error}")
+                    print(f"\n  [error]  step {i} failed: {task.error}", flush=True)
+                    raise RuntimeError(f"step {i} failed: {task.error}")
 
-                updated      = client.get_intent(intent_id).get("intent", {})
-                cur_status   = str(updated.get("lifecycle_status") or updated.get("status") or "")
-                waiting_reas = str(updated.get("lifecycle_waiting_reason") or "")
-                _status(STATUS_LABEL.get(cur_status, cur_status))
-                print(f"  ✓  {step['approved']}", flush=True)
-                _pause(0.8)
+                updated    = client.get_intent(intent_id).get("intent", {})
+                new_status = _fmt_status(
+                    str(updated.get("lifecycle_status") or updated.get("status") or ""),
+                    str(updated.get("lifecycle_waiting_reason") or ""),
+                )
+                _transition(cur_status, new_status)
+                cur_status = new_status
+                print(f"     result:  ✓  {step['approved']}")
+                _pause(0.7)
 
             # ── Human step ────────────────────────────────────────────────
-            hs = n_steps
-            _step(hs, n_steps, "👤", human_role, "ожидаю решения человека…")
-            _status("пауза — ожидание", "человек")
+            print()
+            print(f"  ── step {n_steps}/{n_steps}  👤  {human_role} ──────────────────────────────")
+            print(f"     task:    manual sign-off required")
+            print(f"     with:    you ({human_role})")
+
+            prev_status = cur_status
+            cur_status  = _fmt_status("WAITING", "WAITING_FOR_HUMAN")
+            _transition(prev_status, cur_status)
+
             _divider()
-            print(f"\n  Вы выступаете в роли:  {human_role}")
-            print(f"  Нажмите Enter чтобы одобрить, или Ctrl+C чтобы отменить.\n")
+            print()
+            print(f"  You are acting as:  {human_role}")
+            print(f"  Press Enter to approve, or Ctrl+C to cancel.")
+            print()
 
             human_gate = threading.Event()
             human_task = _ResumeTask(
                 intent_id   = intent_id,
                 actor       = f"human:{human_label}",
-                reason      = f"одобрено — {human_role}",
-                owner_agent = approver_address,
+                reason      = f"approved by {human_role}",
+                owner_agent = approver_addr,
                 gate        = human_gate,
             )
             resume_q.put(human_task)
@@ -478,23 +515,26 @@ def main() -> None:
             try:
                 input("  > ")
             except (EOFError, KeyboardInterrupt):
-                print("\n  [отмена]  согласование отменено пользователем.")
+                print("\n  [cancelled]  approval cancelled by user.")
                 resume_q.put(None)
                 raise SystemExit(0)
 
-            print(flush=True)
-            _p("решение", f"{human_role} подтвердил(а) — продолжаю…")
+            print()
+            _log("decision", f"{human_role} approved — resuming …")
             human_gate.set()
 
             human_task.done.wait(timeout=15)
             if human_task.error:
-                print(f"  [!] ошибка human-шага: {human_task.error}", flush=True)
-                raise RuntimeError(f"human-шаг не прошёл: {human_task.error}")
+                print(f"\n  [error]  human step failed: {human_task.error}", flush=True)
+                raise RuntimeError(f"human step failed: {human_task.error}")
 
-            _pause(0.6)
+            prev_status = cur_status
+            cur_status  = _fmt_status("IN_PROGRESS")
+            _transition(prev_status, cur_status)
+            _pause(0.5)
 
-            # ── Resolve intent ────────────────────────────────────────────
-            _p("завершение", "закрываю интент со статусом COMPLETED…")
+            # ── Resolve ───────────────────────────────────────────────────
+            _log("resolve", "closing intent as COMPLETED …")
             client.resolve_intent(
                 intent_id,
                 {
@@ -506,38 +546,43 @@ def main() -> None:
                     },
                 },
             )
-            _pause(0.5)
+            _pause(0.4)
 
             # ── Wait for terminal event ───────────────────────────────────
             final_status = "COMPLETED"
             try:
                 for event in client.observe(intent_id, since=0, timeout_seconds=10):
-                    ev_status = str(event.get("status") or "")
-                    if ev_status in {"COMPLETED", "FAILED", "CANCELED"}:
-                        final_status = ev_status
+                    ev = str(event.get("status") or "")
+                    if ev in {"COMPLETED", "FAILED", "CANCELED"}:
+                        final_status = ev
                         break
             except Exception:
                 pass
 
-            # ── Final report ──────────────────────────────────────────────
+            prev_status = cur_status
+            cur_status  = _fmt_status(final_status)
+            _transition(prev_status, cur_status)
+
+            # ── Summary ───────────────────────────────────────────────────
             print()
             _divider()
             print()
-            print(f"  Итог:")
-            print(f"    Сценарий:    {scenario['title']}")
+            print(f"  Result:")
+            print(f"    Scenario:    {scenario['title']}")
             print(f"    Intent ID:   {intent_id}")
-            print(f"    Статус:      {STATUS_LABEL.get(final_status, final_status).upper()}")
-            print(f"    Одобрил:     {human_role}")
+            print(f"    Final status: {cur_status}")
+            print(f"    Approved by:  {human_role}")
             print()
-            print(f"  Проверить через CLI:")
+            print(f"  Verify via CLI:")
             print(f"    axme intents get {intent_id}")
             print(f"    axme intents watch {intent_id}")
+            print(f"    axme agents list")
             print(f"    axme quota show")
             print()
 
         finally:
             resume_q.put(None)
-            resume_thread.join(timeout=5)
+            worker.join(timeout=5)
 
 
 if __name__ == "__main__":
