@@ -43,21 +43,16 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "intent_type": "intent.approval.change_mgmt.v1",
         "agents": [
             {
-                "role":        "requester",
-                "address":     "nginx-rollout-requester",
-                "display_name": "Nginx Rollout Requester",
-                "description": "step 1/3 — auto: verifying maintenance window and rollback plan",
-            },
-            {
                 "role":        "validator",
                 "address":     "change-management-validator",
                 "display_name": "Change Management Validator",
-                "description": "step 2/3 — auto: assessing blast radius and service dependencies",
+                "description": "step 1/3 — auto: verifying maintenance window and rollback plan",
             },
             {
                 "role":        "assessor",
                 "address":     "deployment-impact-assessor",
                 "display_name": "Deployment Impact Assessor",
+                "description": "step 2/3 — auto: assessing blast radius and service dependencies",
             },
         ],
         "humans": [
@@ -70,7 +65,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "workflow_steps": [
             {
                 "step_id":              "validate_change",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.check_window",
                 "assigned_to":          "validator",
                 "step_deadline_seconds": 300,
                 "label":                "change-management-validator",
@@ -79,7 +74,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":              "assess_impact",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.risk_assessment",
                 "assigned_to":          "assessor",
                 "step_deadline_seconds": 300,
                 "label":                "deployment-impact-assessor",
@@ -88,7 +83,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":             "cab_signoff",
-                "tool_id":             "axme.approval.v1",
+                "tool_id":             "tool.approval.human_signoff",
                 "assigned_to":         "cab",
                 "requires_approval":   True,
                 "step_deadline_seconds": 3600,
@@ -155,7 +150,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "workflow_steps": [
             {
                 "step_id":              "validate_envelope",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.check_window",
                 "assigned_to":          "envelope_validator",
                 "step_deadline_seconds": 300,
                 "label":                "budget-envelope-validator",
@@ -164,7 +159,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":              "estimate_cost",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.risk_assessment",
                 "assigned_to":          "cost_estimator",
                 "step_deadline_seconds": 300,
                 "label":                "vendor-cost-estimator",
@@ -173,7 +168,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":             "cfo_approval",
-                "tool_id":             "axme.approval.v1",
+                "tool_id":             "tool.approval.human_signoff",
                 "assigned_to":         "cfo",
                 "requires_approval":   True,
                 "step_deadline_seconds": 86400,
@@ -239,7 +234,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "workflow_steps": [
             {
                 "step_id":              "check_policy",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.check_window",
                 "assigned_to":          "policy_checker",
                 "step_deadline_seconds": 300,
                 "label":                "access-policy-checker",
@@ -248,7 +243,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":              "assess_risk",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.risk_assessment",
                 "assigned_to":          "risk_assessor",
                 "step_deadline_seconds": 300,
                 "label":                "data-risk-assessor",
@@ -257,7 +252,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":             "security_signoff",
-                "tool_id":             "axme.approval.v1",
+                "tool_id":             "tool.approval.human_signoff",
                 "assigned_to":         "security_officer",
                 "requires_approval":   True,
                 "step_deadline_seconds": 7200,
@@ -324,7 +319,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "workflow_steps": [
             {
                 "step_id":              "validate_terms",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.check_window",
                 "assigned_to":          "terms_validator",
                 "step_deadline_seconds": 300,
                 "label":                "contract-terms-validator",
@@ -333,7 +328,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":              "check_compliance",
-                "tool_id":              "axme.approval.v1",
+                "tool_id":              "tool.approval.risk_assessment",
                 "assigned_to":          "compliance_checker",
                 "step_deadline_seconds": 300,
                 "label":                "compliance-aml-checker",
@@ -342,7 +337,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
             },
             {
                 "step_id":             "exec_approval",
-                "tool_id":             "axme.approval.v1",
+                "tool_id":             "tool.approval.human_signoff",
                 "assigned_to":         "account_executive",
                 "requires_approval":   True,
                 "step_deadline_seconds": 7200,
@@ -407,9 +402,44 @@ def _require_api_key() -> str:
     return value
 
 
-def _require_human_contact() -> str:
-    """Return the actor email from CLI secrets (used as human contact in the bundle)."""
-    return _read_cli_secrets().get("email", "").strip() or os.getenv("AXME_USER_EMAIL", "").strip()
+def _require_human_contact(api_key: str = "", base_url: str = "") -> str:
+    """Return the actor email for human steps.
+
+    Tries in order:
+    1. AXME_USER_EMAIL env var
+    2. email field in ~/.config/axme/secrets.json
+    3. GET /v1/portal/personal/context (uses actor_token from secrets)
+    Returns empty string if not available — contact is optional on the server.
+    """
+    env_email = os.getenv("AXME_USER_EMAIL", "").strip()
+    if env_email:
+        return env_email
+    secrets = _read_cli_secrets()
+    from_secrets = secrets.get("email", "").strip()
+    if from_secrets:
+        return from_secrets
+    # Resolve from server via actor_token
+    try:
+        actor_token = secrets.get("actor_token", "").strip()
+        effective_key = api_key or secrets.get("api_key", "").strip()
+        effective_url = base_url or secrets.get("base_url", "").strip() or "https://api.cloud.axme.ai"
+        if actor_token and effective_key:
+            req = urllib.request.Request(
+                f"{effective_url}/v1/portal/personal/context",
+                headers={
+                    "X-Api-Key": effective_key,
+                    "Authorization": f"Bearer {actor_token}",
+                },
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                body = json.loads(resp.read())
+            email = (body.get("account") or {}).get("email", "").strip()
+            if email:
+                return email
+    except Exception:
+        pass
+    return ""
 
 
 def _require_base_url() -> str:
@@ -558,7 +588,7 @@ def main() -> None:
 
     api_key       = _require_api_key()
     base_url      = _require_base_url()
-    human_contact = _require_human_contact()
+    human_contact = _require_human_contact(api_key=api_key, base_url=base_url)
 
     client = AxmeClient(
         AxmeClientConfig(
