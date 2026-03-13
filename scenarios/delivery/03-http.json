@@ -10,11 +10,10 @@
       "display_name": "HTTP Webhook Receiver",
       "delivery_mode": "http",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 0.8,
-        "outcome": { "result": "received_and_processed", "via": "http_callback" }
+        "type": "logic",
+        "name": "webhook_receiver"
       },
-      "description": "step 1/1 — auto: receives POST from AXME, processes, resumes"
+      "description": "step 1/1 — http: receives POST from AXME, validates event fields, resumes"
     }
   ],
 

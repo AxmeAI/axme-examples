@@ -4,22 +4,21 @@ Each handler runs in its own daemon thread.  The runner starts all handlers
 BEFORE submitting the intent so they are ready to receive it.
 
 Handler types (handler_spec["type"]):
-  auto_complete  — after delay_seconds calls resume_intent(COMPLETED)
-  auto_fail      — after delay_seconds calls resume_intent(FAILED)
-  no_op          — receives but does nothing (for timeout/retry tests)
-  interactive    — prompts the user in the terminal
+  logic        — fetches full intent via get_intent(), dispatches to handlers registry
+  no_op        — receives but does nothing (intentional: durability/retry/timeout tests only)
+  interactive  — prompts the user in the terminal
 """
 from __future__ import annotations
 
 import json
 import threading
-import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 from axme import AxmeClient, AxmeClientConfig
 
+from .handlers import HandlerNotFoundError, resolve_handler
 from .render import Renderer
 
 
@@ -52,15 +51,15 @@ class AgentHandler(threading.Thread):
         self._stop_event.set()
 
     def _execute_handler(self, intent_id: str) -> None:
-        htype       = self.handler_spec.get("type", "auto_complete")
-        delay       = float(self.handler_spec.get("delay_seconds", 1.0))
-        outcome     = self.handler_spec.get("outcome") or {}
-        fail_reason = self.handler_spec.get("reason", "handler_failed")
+        htype = self.handler_spec.get("type", "logic")
 
         self.render.agent_received(self.address)
 
         if htype == "no_op":
-            self.render.info(f"{self.address}  no_op — not responding (testing retry/timeout)")
+            self.render.info(
+                f"{self.address}  no_op — intentionally not responding "
+                "(retry/timeout durability test)"
+            )
             return
 
         if htype == "interactive":
@@ -74,29 +73,72 @@ class AgentHandler(threading.Thread):
             if choice == "fail":
                 self.render.agent_processing(self.address)
                 self.render.agent_resumed(self.address, "FAILED")
-                self._client.resume_intent(intent_id, {"action": "fail", "reason": "operator_rejected"})
+                self._client.resume_intent(
+                    intent_id, {"action": "fail", "reason": "operator_rejected"}
+                )
             else:
                 self.render.agent_processing(self.address)
                 self.render.agent_resumed(self.address, "COMPLETED")
-                self._client.resume_intent(intent_id, {"action": "complete", **outcome})
+                self._client.resume_intent(intent_id, {"action": "complete"})
             return
 
-        # auto_complete / auto_fail
-        self.render.agent_processing(self.address, delay_secs=delay)
-        time.sleep(delay)
+        # "logic" — fetch full intent, run real handler function, resume with computed result
+        self._execute_logic(intent_id)
 
-        if htype == "auto_fail":
-            self.render.agent_resumed(self.address, "FAILED")
+    def _execute_logic(self, intent_id: str) -> None:
+        """Fetch intent payload, dispatch to handler registry, call resume_intent."""
+        # Fetch the full intent to get the payload
+        try:
+            intent_data = self._client.get_intent(intent_id)
+        except Exception as exc:
+            self.render.error(f"{self.address} get_intent({intent_id}) failed: {exc}")
+            return
+
+        payload = intent_data.get("payload") or {}
+
+        # Resolve handler name: explicit spec takes precedence, fallback to address-derived name
+        handler_name = (
+            self.handler_spec.get("name")
+            or _address_to_handler_name(self.address)
+        )
+
+        try:
+            handler_fn = resolve_handler(handler_name)
+        except HandlerNotFoundError as exc:
+            self.render.error(
+                f"{self.address}: {exc}  — "
+                "set handler.name in the scenario spec or add the handler to runner/handlers/"
+            )
+            return
+
+        self.render.agent_processing(self.address)
+
+        try:
+            result = handler_fn(payload)
+        except Exception as exc:
+            self.render.error(f"{self.address} handler '{handler_name}' raised: {exc}")
             try:
-                self._client.resume_intent(intent_id, {"action": "fail", "reason": fail_reason})
-            except Exception as exc:
-                self.render.error(f"{self.address} resume(FAILED) error: {exc}")
-        else:  # auto_complete
+                self._client.resume_intent(
+                    intent_id, {"action": "fail", "reason": f"handler_exception: {exc}"}
+                )
+            except Exception:
+                pass
+            return
+
+        passed = result.pop("_passed", True)
+
+        if passed:
             self.render.agent_resumed(self.address, "COMPLETED")
             try:
-                self._client.resume_intent(intent_id, {"action": "complete", **outcome})
+                self._client.resume_intent(intent_id, {"action": "complete", **result})
             except Exception as exc:
                 self.render.error(f"{self.address} resume(COMPLETED) error: {exc}")
+        else:
+            self.render.agent_resumed(self.address, "FAILED")
+            try:
+                self._client.resume_intent(intent_id, {"action": "fail", **result})
+            except Exception as exc:
+                self.render.error(f"{self.address} resume(FAILED) error: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -201,8 +243,8 @@ class HttpAgentHandler(AgentHandler):
                 self.send_response(200)
                 self.end_headers()
                 try:
-                    payload   = json.loads(body)
-                    intent_id = payload.get("intent_id")
+                    envelope  = json.loads(body)
+                    intent_id = envelope.get("intent_id")
                     if intent_id:
                         threading.Thread(
                             target=handler_ref._execute_handler,
@@ -233,11 +275,11 @@ class HttpAgentHandler(AgentHandler):
 
 
 # ---------------------------------------------------------------------------
-# No-op (internal or absent agent)
+# No-op (internal runtime or intentional non-response for durability tests)
 # ---------------------------------------------------------------------------
 
 class NoOpHandler:
-    """Placeholder for agents with delivery_mode=internal (handled by agent_core)."""
+    """Placeholder — agent_core handles internal steps, or intentional no-op for durability."""
 
     def __init__(self, agent_spec: dict[str, Any], *, render: Renderer) -> None:
         self.agent_spec = agent_spec
@@ -245,7 +287,7 @@ class NoOpHandler:
         self.render     = render
 
     def start(self) -> None:
-        pass  # agent_core handles this step
+        pass
 
     def stop(self) -> None:
         pass
@@ -270,6 +312,32 @@ def make_handler(
     if mode == "poll":
         return PollAgentHandler(agent_spec, api_key=api_key, base_url=base_url, render=render)
     if mode == "http":
-        return HttpAgentHandler(agent_spec, api_key=api_key, base_url=base_url, render=render, port=http_port)
+        return HttpAgentHandler(
+            agent_spec, api_key=api_key, base_url=base_url, render=render, port=http_port
+        )
     # internal / no_op / external
     return NoOpHandler(agent_spec, render=render)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _address_to_handler_name(address: str) -> str:
+    """Derive a handler registry name from an agent address.
+
+    Examples:
+        compliance-checker-agent          → compliance_checker
+        risk-calculator-agent             → risk_calculator
+        agent://org/ws/batch-processor    → batch_processor
+        fulfillment-service               → fulfillment_service
+    """
+    if "/" in address:
+        address = address.rsplit("/", 1)[-1]
+    for suffix in ("-agent", "-service", "-checker", "-calculator",
+                   "-validator", "-assessor", "-processor", "-receiver",
+                   "-notifier"):
+        if address.endswith(suffix):
+            address = address[: -len(suffix)]
+            break
+    return address.replace("-", "_")

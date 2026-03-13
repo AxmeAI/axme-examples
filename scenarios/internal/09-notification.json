@@ -8,11 +8,10 @@
       "role": "processor",
       "address": "notification-demo-processor",
       "display_name": "Notification Demo Processor",
-      "delivery_mode": "internal",
+      "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 0.5,
-        "outcome": { "result": "processed" }
+        "type": "logic",
+        "name": "deployment_notifier"
       }
     }
   ],

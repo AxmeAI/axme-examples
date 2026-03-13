@@ -8,13 +8,12 @@
       "role": "validator",
       "address": "policy-validator",
       "display_name": "Policy Validator",
-      "delivery_mode": "internal",
+      "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 1.0,
-        "outcome": { "result": "policy_ok" }
+        "type": "logic",
+        "name": "policy_checker"
       },
-      "description": "step 1/2 — auto: validates policy before routing to human"
+      "description": "step 1/2 — stream: validates access request against RBAC rules before routing to human"
     }
   ],
 

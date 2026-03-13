@@ -10,15 +10,10 @@
       "display_name": "Compliance Checker",
       "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 1.5,
-        "outcome": {
-          "compliance_status": "passed",
-          "checks": ["SOC2", "GDPR", "ISO27001"],
-          "notes": "All compliance checks passed"
-        }
+        "type": "logic",
+        "name": "compliance_checker"
       },
-      "description": "step 1/5 — stream: receives via SSE, runs compliance checks"
+      "description": "step 1/5 — stream: receives via SSE, validates change against compliance rules"
     },
     {
       "role": "risk_calculator",
@@ -26,16 +21,10 @@
       "display_name": "Risk Calculator",
       "delivery_mode": "http",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 0.8,
-        "outcome": {
-          "risk_score": 35,
-          "risk_level": "low",
-          "blast_radius": "single_service",
-          "rollback_available": true
-        }
+        "type": "logic",
+        "name": "risk_calculator"
       },
-      "description": "step 2/5 — http: receives POST from AXME, calculates risk score"
+      "description": "step 2/5 — http: receives POST from AXME, computes risk score from payload fields"
     }
   ],
 

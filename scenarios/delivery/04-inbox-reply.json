@@ -10,15 +10,10 @@
       "display_name": "Fulfillment Service",
       "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 2.0,
-        "outcome": {
-          "fulfilled": true,
-          "tracking_id": "TRK-20260313-001",
-          "estimated_delivery": "2026-03-15"
-        }
+        "type": "logic",
+        "name": "fulfillment_service"
       },
-      "description": "step 1/1 — auto: processes fulfillment request, delivers result to initiator inbox"
+      "description": "step 1/1 — stream: validates order, computes tracking ID, delivers result to initiator inbox"
     }
   ],
 

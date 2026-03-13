@@ -8,13 +8,12 @@
       "role": "checker",
       "address": "pre-check-agent",
       "display_name": "Pre-check Agent",
-      "delivery_mode": "internal",
+      "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 0.8,
-        "outcome": { "result": "pre_check_passed" }
+        "type": "logic",
+        "name": "pre_check_agent"
       },
-      "description": "step 1/2 — auto: runs pre-checks"
+      "description": "step 1/2 — stream: validates PR format, size, and metadata before routing to human reviewer"
     }
   ],
 

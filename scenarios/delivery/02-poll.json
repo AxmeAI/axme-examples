@@ -10,11 +10,10 @@
       "display_name": "Batch Processor",
       "delivery_mode": "poll",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 0.5,
-        "outcome": { "result": "batch_processed", "records_count": 42 }
+        "type": "logic",
+        "name": "batch_processor"
       },
-      "description": "step 1/1 — auto: polls for pending intents, processes batch"
+      "description": "step 1/1 — poll: polls for pending intents, validates batch spec, returns record count"
     }
   ],
 

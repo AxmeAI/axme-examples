@@ -1,0 +1,37 @@
+{
+  "model": "A",
+  "scenario_id": "model_a.http_agent_direct.v1",
+  "title": "Model A — HTTP callback binding for a direct intent",
+  "description": "Intent created directly via POST /v1/intents to an HTTP-delivery-mode agent. AXME POSTs the intent to the agent's registered callback_url. The runner starts a local HTTP server as the receiver. Tests HTTP binding for Model A (no ScenarioBundle).",
+  "pattern": "request_response",
+
+  "agents": [
+    {
+      "role": "webhook_agent",
+      "address": "webhook-agent-ma",
+      "display_name": "Webhook Agent (Model A)",
+      "delivery_mode": "http",
+      "handler": {
+        "type": "logic",
+        "name": "webhook_receiver"
+      },
+      "description": "receives POST from AXME, validates event payload, resumes"
+    }
+  ],
+
+  "intent": {
+    "to_agent": "webhook_agent",
+    "type": "intent.model_a.webhook_event.v1",
+    "payload": {
+      "event_type": "payment.completed",
+      "order_id":   "ord-ma-0055",
+      "amount":     1250.00,
+      "currency":   "EUR"
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 5,
+    "max_delivery_attempts": 3
+  }
+}

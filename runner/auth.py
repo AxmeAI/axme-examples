@@ -94,6 +94,7 @@ class AuthContext:
         self.base_url  = require_base_url()
         self.actor_token = require_actor_token()
         self._human_contact: str | None = None
+        self._initiator_address: str | None = None
 
     def human_contact(self) -> str:
         if self._human_contact is None:
@@ -102,3 +103,34 @@ class AuthContext:
                 base_url=self.base_url,
             )
         return self._human_contact
+
+    def initiator_address(self) -> str:
+        """Return the SA address of the current API key owner (for reply_to inbox).
+
+        Fetched once from GET /v1/me and cached. Returns empty string on failure.
+        """
+        if self._initiator_address is None:
+            self._initiator_address = _resolve_initiator_address(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
+        return self._initiator_address
+
+
+def _resolve_initiator_address(api_key: str, base_url: str) -> str:
+    """Call GET /v1/me to get the SA address of the API key owner."""
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/v1/me",
+            headers={"X-Api-Key": api_key},
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            body = json.loads(resp.read())
+        return str(
+            body.get("address")
+            or (body.get("service_account") or {}).get("address")
+            or ""
+        )
+    except Exception:
+        return ""

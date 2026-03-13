@@ -26,9 +26,10 @@ _SCENARIOS = _ROOT / "scenarios"
 # Add runner to path so `from runner import ...` works when running from any directory
 sys.path.insert(0, str(_ROOT))
 
-from runner.auth   import AuthContext
-from runner.render import Renderer
-from runner.runner import ScenarioRunner
+from runner.auth             import AuthContext
+from runner.model_a_runner   import ModelAScenarioRunner
+from runner.render           import Renderer
+from runner.runner           import ScenarioRunner
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +62,11 @@ def _short_id(path: Path) -> str:
 # --list
 # ---------------------------------------------------------------------------
 
+def _model_label(spec: dict) -> str:
+    """Return '[A]' or '[B]' based on model field."""
+    return "[A]" if spec.get("model") == "A" else "[B]"
+
+
 def _cmd_list() -> None:
     files = _discover_scenarios()
     if not files:
@@ -68,7 +74,7 @@ def _cmd_list() -> None:
         return
 
     print()
-    print("  Available scenarios:")
+    print("  Available scenarios:  [A] = Model A (direct intent)  [B] = Model B (ScenarioBundle)")
     print()
 
     cur_group = ""
@@ -77,10 +83,11 @@ def _cmd_list() -> None:
         if group != cur_group:
             print(f"  ── {group}/ " + "─" * max(0, 60 - len(group)))
             cur_group = group
-        spec = _load_spec(f)
-        sid  = _short_id(f)
+        spec  = _load_spec(f)
+        sid   = _short_id(f)
         title = spec.get("title") or spec.get("scenario_id") or f.stem
-        print(f"    {sid:<40}  {title}")
+        label = _model_label(spec)
+        print(f"    {label}  {sid:<40}  {title}")
     print()
 
 
@@ -113,11 +120,20 @@ def _cmd_validate(path_str: str) -> None:
 
 
 def _validate_spec(spec: dict) -> None:
-    required = ["scenario_id", "title", "workflow_steps", "intent"]
-    for field in required:
+    required_common = ["scenario_id", "title", "intent"]
+    for field in required_common:
         if not spec.get(field):
             print(f"  ✗ Missing required field: {field!r}")
             raise SystemExit(1)
+
+    if spec.get("model") == "A":
+        # Model A: no workflow_steps required
+        return
+
+    # Model B: workflow_steps required
+    if not spec.get("workflow_steps"):
+        print("  ✗ Missing required field: 'workflow_steps' (required for Model B)")
+        raise SystemExit(1)
     for i, step in enumerate(spec.get("workflow_steps") or []):
         if not step.get("step_id"):
             print(f"  ✗ workflow_steps[{i}] missing step_id")
@@ -159,9 +175,10 @@ def _cmd_pick() -> Path:
         sid   = _short_id(f)
         title = spec.get("title") or spec.get("scenario_id") or f.stem
         label = str(idx)
+        model = _model_label(spec)
         index_map[label] = f
-        print(f"  [{label:>2}]  {title}")
-        print(f"        {sid}")
+        print(f"  [{label:>2}] {model}  {title}")
+        print(f"         {sid}")
         idx += 1
     print()
 
@@ -231,7 +248,14 @@ def main() -> None:
 
     auth   = AuthContext()
     render = Renderer()
-    runner = ScenarioRunner(spec, auth=auth, render=render)
+
+    if spec.get("model") == "A":
+        runner: ScenarioRunner | ModelAScenarioRunner = ModelAScenarioRunner(
+            spec, auth=auth, render=render
+        )
+    else:
+        runner = ScenarioRunner(spec, auth=auth, render=render)
+
     runner.run()
 
 

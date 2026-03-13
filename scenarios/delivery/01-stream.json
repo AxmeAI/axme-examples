@@ -1,20 +1,19 @@
 {
   "scenario_id": "delivery.stream_agent.v1",
   "title": "Stream binding — agent receives intent via SSE listen()",
-  "description": "Demonstrates the primary native delivery binding. The agent holds an open SSE connection (GET /v1/agents/{address}/intents/stream). AXME pushes the intent over the connection. The agent processes and resumes COMPLETED.",
+  "description": "Demonstrates the primary native delivery binding. The agent holds an open SSE connection (GET /v1/agents/{address}/intents/stream). AXME pushes the intent over that connection. The compliance-checker agent reads the payload, validates it against real policy rules, and resumes with a computed result.",
 
   "agents": [
     {
       "role": "processor",
-      "address": "stream-processor-agent",
-      "display_name": "Stream Processor",
+      "address": "compliance-checker-agent",
+      "display_name": "Compliance Checker",
       "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 1.5,
-        "outcome": { "result": "processed", "status": "ok" }
+        "type": "logic",
+        "name": "compliance_checker"
       },
-      "description": "step 1/1 — auto: processes intent and resumes via SSE stream binding"
+      "description": "step 1/1 — stream: receives via SSE, validates change against compliance rules"
     }
   ],
 
@@ -22,7 +21,7 @@
 
   "workflow_steps": [
     {
-      "step_id": "process",
+      "step_id": "compliance_check",
       "tool_id": "tool.approval.check_window",
       "assigned_to": "processor",
       "step_deadline_seconds": 60
@@ -30,11 +29,15 @@
   ],
 
   "intent": {
-    "type": "intent.example.stream.v1",
+    "type": "intent.compliance.check.v1",
     "payload": {
-      "task":        "process order #4821",
-      "priority":    "normal",
-      "customer_id": "cust-001"
+      "change_id":        "CHG-4821",
+      "service":          "api-gateway",
+      "environment":      "staging",
+      "change_type":      "config_update",
+      "risk_level":       "medium",
+      "rollback_plan":    "revert via git tag v2.4.1",
+      "backup_confirmed": false
     }
   },
 

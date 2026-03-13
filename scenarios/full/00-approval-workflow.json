@@ -8,25 +8,23 @@
       "role": "validator",
       "address": "change-management-validator",
       "display_name": "Change Management Validator",
-      "delivery_mode": "internal",
+      "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 1.2,
-        "outcome": { "result": "approved", "reason": "maintenance window confirmed, rollback plan verified" }
+        "type": "logic",
+        "name": "change_validator"
       },
-      "description": "step 1/3 — auto: verifying maintenance window and rollback plan"
+      "description": "step 1/3 — stream: validates change_id format, rollback plan, environment allowlist"
     },
     {
       "role": "assessor",
       "address": "deployment-impact-assessor",
       "display_name": "Deployment Impact Assessor",
-      "delivery_mode": "internal",
+      "delivery_mode": "stream",
       "handler": {
-        "type": "auto_complete",
-        "delay_seconds": 1.2,
-        "outcome": { "result": "approved", "reason": "blast radius: low, zero downtime deployment confirmed" }
+        "type": "logic",
+        "name": "deployment_impact_assessor"
       },
-      "description": "step 2/3 — auto: assessing blast radius and service dependencies"
+      "description": "step 2/3 — stream: computes blast radius and affected services from static dependency map"
     }
   ],
 

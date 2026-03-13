@@ -1,0 +1,39 @@
+{
+  "model": "A",
+  "scenario_id": "model_a.human_task_direct.v1",
+  "title": "Model A — human task without workflow engine",
+  "description": "Intent created directly via POST /v1/intents with a human_task field. No ScenarioBundle, no workflow DAG. Tests that human_task + form_schema works for a plain Model A intent. The gateway sends an email notification and the runner prompts the human to act.",
+  "pattern": "request_response",
+
+  "agents": [],
+
+  "intent": {
+    "to_agent": "human",
+    "type": "intent.model_a.human_approval.v1",
+    "payload": {
+      "request_id":  "MANUAL-APPR-001",
+      "description": "Direct human approval request — no workflow engine",
+      "requested_by": "initiator-demo",
+      "context":     "Testing Model A human task path: intent created directly via POST /v1/intents"
+    },
+    "human_task": {
+      "task_type":        "approval",
+      "title":            "Manual approval request — Model A test",
+      "description":      "This intent was created without a ScenarioBundle. Approve to verify the human task path works for plain Model A intents.",
+      "allowed_outcomes": ["approved", "rejected"],
+      "form_schema": {
+        "type": "object",
+        "required": ["approved"],
+        "properties": {
+          "approved": { "type": "boolean" },
+          "notes":    { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 30,
+    "max_delivery_attempts": 3
+  }
+}
