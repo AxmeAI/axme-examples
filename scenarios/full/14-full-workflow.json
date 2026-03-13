@@ -1,0 +1,141 @@
+{
+  "scenario_id": "full.multi_binding_workflow.v1",
+  "title": "Full production workflow — stream + http + internal + human",
+  "description": "A realistic enterprise change-approval pipeline combining all delivery bindings and runtime types in one workflow: (1) compliance check via stream binding, (2) risk calculator via HTTP binding, (3) internal notification step, (4) human CAB approval via CLI tasks, with deadline, reminders, and delivery retry configured.",
+
+  "agents": [
+    {
+      "role": "compliance_checker",
+      "address": "compliance-checker-agent",
+      "display_name": "Compliance Checker",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "auto_complete",
+        "delay_seconds": 1.5,
+        "outcome": {
+          "compliance_status": "passed",
+          "checks": ["SOC2", "GDPR", "ISO27001"],
+          "notes": "All compliance checks passed"
+        }
+      },
+      "description": "step 1/5 — stream: receives via SSE, runs compliance checks"
+    },
+    {
+      "role": "risk_calculator",
+      "address": "risk-calculator-agent",
+      "display_name": "Risk Calculator",
+      "delivery_mode": "http",
+      "handler": {
+        "type": "auto_complete",
+        "delay_seconds": 0.8,
+        "outcome": {
+          "risk_score": 35,
+          "risk_level": "low",
+          "blast_radius": "single_service",
+          "rollback_available": true
+        }
+      },
+      "description": "step 2/5 — http: receives POST from AXME, calculates risk score"
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "cab_approver",
+      "display_name": "Change Advisory Board",
+      "description": "step 4/5 — human: final sign-off via axme tasks CLI",
+      "handler": { "type": "interactive" }
+    }
+  ],
+
+  "workflow_steps": [
+    {
+      "step_id": "compliance_check",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "compliance_checker",
+      "step_deadline_seconds": 120,
+      "description": "compliance check via stream binding"
+    },
+    {
+      "step_id": "risk_calculation",
+      "tool_id": "tool.approval.risk_assessment",
+      "assigned_to": "risk_calculator",
+      "step_deadline_seconds": 60,
+      "description": "risk calculation via http binding"
+    },
+    {
+      "step_id": "notify_cab",
+      "runtime_type": "notification",
+      "config": {
+        "channels": ["email", "inbox"],
+        "subject": "CAB approval required — change ready for review",
+        "body": "Compliance and risk checks passed. CAB review required. Intent: {{intent_id}}"
+      },
+      "description": "step 3/5 — internal: notify CAB that approval is needed"
+    },
+    {
+      "step_id": "cab_approval",
+      "tool_id": "tool.approval.human_signoff",
+      "assigned_to": "cab_approver",
+      "requires_approval": true,
+      "step_deadline_seconds": 3600,
+      "remind_after_seconds": 300,
+      "remind_interval_seconds": 300,
+      "max_reminders": 3,
+      "human_task": {
+        "task_type": "approval",
+        "title": "CAB sign-off — nginx v2.5 rollout",
+        "description": "Compliance: PASSED. Risk: LOW (score 35). Review and approve.",
+        "allowed_outcomes": ["approved", "rejected", "deferred"],
+        "required_comment": false,
+        "form_schema": {
+          "type": "object",
+          "required": ["outcome"],
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": ["approved", "rejected", "deferred"]
+            },
+            "notes": { "type": "string" },
+            "defer_until": {
+              "type": "string",
+              "description": "ISO 8601 datetime if deferred"
+            }
+          }
+        }
+      },
+      "description": "step 4/5 — human: CAB final sign-off"
+    },
+    {
+      "step_id": "final_notification",
+      "runtime_type": "notification",
+      "config": {
+        "channels": ["email", "inbox"],
+        "subject": "Change approved — proceeding with deployment",
+        "body": "The change has been approved by CAB. Deployment can proceed."
+      },
+      "description": "step 5/5 — internal: notify stakeholders of approval"
+    }
+  ],
+
+  "intent": {
+    "type": "intent.approval.change_mgmt.v1",
+    "payload": {
+      "change_id":     "CHG-9900",
+      "service":       "nginx",
+      "version":       "2.5.0",
+      "environment":   "prod-cluster-eu",
+      "description":   "nginx v2.5 rollout — security patch CVE-2026-0001",
+      "risk_level":    "low",
+      "rollback_plan": "kubectl rollout undo deployment/nginx"
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 120,
+    "max_delivery_attempts": 3,
+    "remind_after_seconds": 300,
+    "remind_interval_seconds": 300,
+    "max_reminders": 3
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "scenario_id": "delivery.stream_agent.v1",
+  "title": "Stream binding — agent receives intent via SSE listen()",
+  "description": "Demonstrates the primary native delivery binding. The agent holds an open SSE connection (GET /v1/agents/{address}/intents/stream). AXME pushes the intent over the connection. The agent processes and resumes COMPLETED.",
+
+  "agents": [
+    {
+      "role": "processor",
+      "address": "stream-processor-agent",
+      "display_name": "Stream Processor",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "auto_complete",
+        "delay_seconds": 1.5,
+        "outcome": { "result": "processed", "status": "ok" }
+      },
+      "description": "step 1/1 — auto: processes intent and resumes via SSE stream binding"
+    }
+  ],
+
+  "humans": [],
+
+  "workflow_steps": [
+    {
+      "step_id": "process",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "processor",
+      "step_deadline_seconds": 60
+    }
+  ],
+
+  "intent": {
+    "type": "intent.example.stream.v1",
+    "payload": {
+      "task":        "process order #4821",
+      "priority":    "normal",
+      "customer_id": "cust-001"
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 5,
+    "max_delivery_attempts": 3
+  }
+}
