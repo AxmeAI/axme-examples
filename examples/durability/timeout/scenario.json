@@ -1,0 +1,36 @@
+{
+  "scenario_id": "durability.timeout.v1",
+  "title": "Durability — step deadline and TIMED_OUT transition",
+  "description": "Demonstrates AXME's step-level deadline enforcement. The batch-processor agent receives an intent but intentionally takes longer than `step_deadline_seconds` to respond. AXME transitions the intent to TIMED_OUT and emits an `intent.timed_out` lifecycle event.",
+
+  "agents": [
+    {
+      "role": "processor",
+      "address": "slow-batch-processor",
+      "display_name": "Slow Batch Processor",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "process_batch",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "processor",
+        "step_deadline_seconds": 10
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.batch.timeout_test.v1",
+    "payload": {
+      "batch_id":    "batch-timeout-20260314",
+      "record_count": 1000000,
+      "description": "Large batch that takes longer than step_deadline_seconds=10 to process. Agent will NOT respond in time, demonstrating AXME TIMED_OUT transition."
+    },
+    "max_delivery_attempts": 1
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "scenario_id": "durability.reminder_escalation.v1",
+  "title": "Durability — human SLA breach, reminders, and escalation",
+  "description": "Demonstrates AXME's reminder and escalation durability primitives. A validator agent processes the change request, then routes for human sign-off with a tight SLA. If the approver does not respond: (1) AXME sends reminder emails at configured intervals, (2) after max_reminders are exhausted, the step transitions to TIMED_OUT, and (3) the parent intent transitions to FAILED — providing a full audit trail.",
+
+  "agents": [
+    {
+      "role": "validator",
+      "address": "pre-approval-validator",
+      "display_name": "Pre-Approval Validator",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "approver",
+      "display_name": "Change Approver"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "pre_validate",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "validator",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "change_approval",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "approver",
+        "requires_approval": true,
+        "step_deadline_seconds": 180,
+        "remind_after_seconds": 30,
+        "remind_interval_seconds": 30,
+        "max_reminders": 3,
+        "human_task": {
+          "title": "Change approval required — CHG-20260314-004",
+          "description": "Approve or reject this infrastructure change. SLA: 3 minutes. Reminders every 30 seconds. After 3 reminders the change is auto-rejected.",
+          "form_schema": {
+            "type": "object",
+            "required": ["approved"],
+            "properties": {
+              "approved": { "type": "boolean" },
+              "notes":    { "type": "string" }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.change.approval.v1",
+    "payload": {
+      "change_id":    "CHG-20260314-004",
+      "service":      "auth-service",
+      "environment":  "staging",
+      "change_type":  "config_update",
+      "risk_level":   "low",
+      "description":  "Update rate limiting config: increase burst to 200 req/s"
+    },
+    "max_delivery_attempts": 3
+  }
+}
