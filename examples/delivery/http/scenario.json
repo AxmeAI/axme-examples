@@ -9,6 +9,7 @@
       "address": "http-order-processor",
       "display_name": "HTTP Order Processor",
       "delivery_mode": "http",
+      "callback_url": "https://axme-http-agent-1047255398033.us-central1.run.app/intent",
       "create_if_missing": true
     }
   ],
