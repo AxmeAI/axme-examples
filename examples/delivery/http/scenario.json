@@ -1,0 +1,37 @@
+{
+  "scenario_id": "delivery.http.v1",
+  "title": "HTTP binding — order processor via AXME webhook push",
+  "description": "AXME delivers the intent by POSTing to the agent's registered callback_url. The agent runs an HTTP server that accepts deliveries, processes order events, and resumes the intent. AXME manages retries and dead-letter tracking automatically.",
+
+  "agents": [
+    {
+      "role": "processor",
+      "address": "http-order-processor",
+      "display_name": "HTTP Order Processor",
+      "delivery_mode": "http",
+      "create_if_missing": true
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "process_order",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "processor",
+        "step_deadline_seconds": 60
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.example.order.v1",
+    "payload": {
+      "event_type": "order.placed",
+      "order_id":   "ord-8821",
+      "amount":     250.00,
+      "currency":   "USD"
+    },
+    "max_delivery_attempts": 3
+  }
+}

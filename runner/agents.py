@@ -74,12 +74,16 @@ class AgentHandler(threading.Thread):
                 self.render.agent_processing(self.address)
                 self.render.agent_resumed(self.address, "FAILED")
                 self._client.resume_intent(
-                    intent_id, {"action": "fail", "reason": "operator_rejected"}
+                    intent_id,
+                    {"action": "fail", "reason": "operator_rejected"},
+                    owner_agent=self.address,
                 )
             else:
                 self.render.agent_processing(self.address)
                 self.render.agent_resumed(self.address, "COMPLETED")
-                self._client.resume_intent(intent_id, {"action": "complete"})
+                self._client.resume_intent(
+                    intent_id, {"action": "complete"}, owner_agent=self.address
+                )
             return
 
         # "logic" — fetch full intent, run real handler function, resume with computed result
@@ -130,13 +134,21 @@ class AgentHandler(threading.Thread):
         if passed:
             self.render.agent_resumed(self.address, "COMPLETED")
             try:
-                self._client.resume_intent(intent_id, {"action": "complete", **result})
+                self._client.resume_intent(
+                    intent_id,
+                    {"action": "complete", **result},
+                    owner_agent=self.address,
+                )
             except Exception as exc:
                 self.render.error(f"{self.address} resume(COMPLETED) error: {exc}")
         else:
             self.render.agent_resumed(self.address, "FAILED")
             try:
-                self._client.resume_intent(intent_id, {"action": "fail", **result})
+                self._client.resume_intent(
+                    intent_id,
+                    {"action": "fail", **result},
+                    owner_agent=self.address,
+                )
             except Exception as exc:
                 self.render.error(f"{self.address} resume(FAILED) error: {exc}")
 
