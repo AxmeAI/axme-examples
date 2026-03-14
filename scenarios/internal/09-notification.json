@@ -1,0 +1,63 @@
+{
+  "scenario_id": "internal.notification.v1",
+  "title": "Internal runtime: notification — non-blocking email + inbox side effect",
+  "description": "Workflow includes a notification step that sends an email and inbox message to specified recipients. The step completes immediately (non-blocking) — the workflow continues without waiting for the notification to be read. Tests the notification built-in handler and SMTP delivery.",
+
+  "agents": [
+    {
+      "role": "processor",
+      "address": "notification-demo-processor",
+      "display_name": "Notification Demo Processor",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "logic",
+        "name": "deployment_notifier"
+      }
+    }
+  ],
+
+  "humans": [],
+
+  "workflow_steps": [
+    {
+      "step_id": "start_processing",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "processor",
+      "step_deadline_seconds": 30,
+      "description": "step 1/3 — auto: processing begins"
+    },
+    {
+      "step_id": "notify_team",
+      "runtime_type": "notification",
+      "config": {
+        "channels": ["email", "inbox"],
+        "subject": "Deployment started — {{intent_id}}",
+        "body": "The deployment pipeline has started. Monitor via axme intents get {{intent_id}}.",
+        "_note": "to is injected from humans list or spec-level contacts"
+      },
+      "description": "step 2/3 — internal: sends notification, auto-completes immediately"
+    },
+    {
+      "step_id": "finalize",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "processor",
+      "step_deadline_seconds": 30,
+      "description": "step 3/3 — auto: finalization after notification"
+    }
+  ],
+
+  "intent": {
+    "type": "intent.example.internal_notification.v1",
+    "payload": {
+      "deployment_id": "deploy-2026-03-13-nginx",
+      "service":       "nginx",
+      "environment":   "prod-cluster-eu",
+      "triggered_by":  "ci-cd-pipeline"
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 5,
+    "max_delivery_attempts": 3
+  }
+}

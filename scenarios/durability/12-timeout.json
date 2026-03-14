@@ -1,0 +1,44 @@
+{
+  "scenario_id": "durability.timeout.v1",
+  "title": "Intent timeout — deadline_at exceeded → TIMED_OUT",
+  "description": "Intent with deadline_at = now + 45 seconds. The agent is registered but uses a no_op handler (never resumes). The TIMEOUT scheduled job fires when deadline_at passes, transitions the intent to TIMED_OUT, and emits the intent.timed_out webhook. The runner verifies that resume on a TIMED_OUT intent returns 4xx.",
+
+  "agents": [
+    {
+      "role": "slow_agent",
+      "address": "timeout-demo-agent",
+      "display_name": "Timeout Demo Agent",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "no_op"
+      },
+      "description": "step 1/1 — no_op: intentionally never resumes (triggers timeout)"
+    }
+  ],
+
+  "humans": [],
+
+  "workflow_steps": [
+    {
+      "step_id": "process",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "slow_agent",
+      "step_deadline_seconds": 120
+    }
+  ],
+
+  "intent": {
+    "type": "intent.example.timeout.v1",
+    "payload": {
+      "task":   "will_time_out",
+      "reason": "agent never responds within deadline"
+    }
+  },
+
+  "durability": {
+    "deadline_minutes_from_now": 1,
+    "_comment": "deadline set to 45s by runner for fast demo",
+    "deadline_seconds": 45,
+    "max_delivery_attempts": 5
+  }
+}

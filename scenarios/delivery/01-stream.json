@@ -1,0 +1,48 @@
+{
+  "scenario_id": "delivery.stream_agent.v1",
+  "title": "Stream binding — agent receives intent via SSE listen()",
+  "description": "Demonstrates the primary native delivery binding. The agent holds an open SSE connection (GET /v1/agents/{address}/intents/stream). AXME pushes the intent over that connection. The compliance-checker agent reads the payload, validates it against real policy rules, and resumes with a computed result.",
+
+  "agents": [
+    {
+      "role": "processor",
+      "address": "compliance-checker-agent",
+      "display_name": "Compliance Checker",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "logic",
+        "name": "compliance_checker"
+      },
+      "description": "step 1/1 — stream: receives via SSE, validates change against compliance rules"
+    }
+  ],
+
+  "humans": [],
+
+  "workflow_steps": [
+    {
+      "step_id": "compliance_check",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "processor",
+      "step_deadline_seconds": 60
+    }
+  ],
+
+  "intent": {
+    "type": "intent.compliance.check.v1",
+    "payload": {
+      "change_id":        "CHG-4821",
+      "service":          "api-gateway",
+      "environment":      "staging",
+      "change_type":      "config_update",
+      "risk_level":       "medium",
+      "rollback_plan":    "revert via git tag v2.4.1",
+      "backup_confirmed": false
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 5,
+    "max_delivery_attempts": 3
+  }
+}

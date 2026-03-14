@@ -1,0 +1,36 @@
+{
+  "scenario_id": "delivery.poll.v1",
+  "title": "Poll binding — batch processor via periodic reconnect",
+  "description": "The batch-processor-agent does NOT hold a persistent connection. It wakes up every POLL_INTERVAL seconds, connects briefly to check for new intents, processes the batch spec, then disconnects. Useful for batch jobs and cron-style processors.",
+
+  "agents": [
+    {
+      "role": "processor",
+      "address": "batch-processor-agent",
+      "display_name": "Batch Processor",
+      "delivery_mode": "poll",
+      "create_if_missing": true
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "process_batch",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "processor",
+        "step_deadline_seconds": 120
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.example.batch.v1",
+    "payload": {
+      "batch_id":    "batch-2026-03-13-001",
+      "record_type": "transactions",
+      "date_range":  "2026-03-12"
+    },
+    "max_delivery_attempts": 5
+  }
+}

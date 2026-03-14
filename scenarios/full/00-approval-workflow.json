@@ -1,0 +1,97 @@
+{
+  "scenario_id": "full.approval_workflow.v1",
+  "title": "Change management approval — 2 auto agents + 1 human CAB sign-off",
+  "description": "3-step durable approval: validator (auto) → assessor (auto) → Change Advisory Board (human)",
+
+  "agents": [
+    {
+      "role": "validator",
+      "address": "change-management-validator",
+      "display_name": "Change Management Validator",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "logic",
+        "name": "change_validator"
+      },
+      "description": "step 1/3 — stream: validates change_id format, rollback plan, environment allowlist"
+    },
+    {
+      "role": "assessor",
+      "address": "deployment-impact-assessor",
+      "display_name": "Deployment Impact Assessor",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "logic",
+        "name": "deployment_impact_assessor"
+      },
+      "description": "step 2/3 — stream: computes blast radius and affected services from static dependency map"
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "cab",
+      "display_name": "Change Advisory Board (CAB)",
+      "description": "step 3/3 — human: final sign-off",
+      "handler": { "type": "interactive" }
+    }
+  ],
+
+  "workflow_steps": [
+    {
+      "step_id": "validate_change",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "validator",
+      "step_deadline_seconds": 300,
+      "description": "verifying maintenance window and rollback plan"
+    },
+    {
+      "step_id": "assess_impact",
+      "tool_id": "tool.approval.risk_assessment",
+      "assigned_to": "assessor",
+      "step_deadline_seconds": 300,
+      "description": "assessing blast radius and service dependencies"
+    },
+    {
+      "step_id": "cab_signoff",
+      "tool_id": "tool.approval.human_signoff",
+      "assigned_to": "cab",
+      "requires_approval": true,
+      "step_deadline_seconds": 3600,
+      "remind_after_seconds": 300,
+      "remind_interval_seconds": 300,
+      "max_reminders": 3,
+      "human_task": {
+        "task_type": "approval",
+        "title": "Final CAB sign-off — nginx rollout to prod-cluster-eu",
+        "description": "Review and approve the nginx config rollout to prod-cluster-eu",
+        "allowed_outcomes": ["approved", "rejected"],
+        "form_schema": {
+          "type": "object",
+          "required": ["approved"],
+          "properties": {
+            "approved": { "type": "boolean" },
+            "notes":    { "type": "string" }
+          }
+        }
+      }
+    }
+  ],
+
+  "intent": {
+    "type": "intent.approval.change_mgmt.v1",
+    "payload": {
+      "change_id":     "CHG-4821",
+      "service":       "nginx",
+      "environment":   "prod-cluster-eu",
+      "description":   "Update nginx config for load balancing improvements",
+      "risk_level":    "medium",
+      "rollback_plan": "revert to previous nginx.conf via git tag v2.1.1"
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 60,
+    "max_delivery_attempts": 3
+  }
+}

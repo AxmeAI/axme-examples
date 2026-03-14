@@ -1,0 +1,40 @@
+{
+  "scenario_id": "delivery.stream.v1",
+  "title": "Stream binding — compliance checker via SSE",
+  "description": "The compliance-checker-agent holds a persistent SSE connection (GET /v1/agents/{address}/intents/stream). AXME pushes the change request intent over that connection the moment it is submitted. The agent validates it against real compliance rules and resumes.",
+
+  "agents": [
+    {
+      "role": "checker",
+      "address": "compliance-checker-agent",
+      "display_name": "Compliance Checker",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "compliance_check",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "checker",
+        "step_deadline_seconds": 60
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.compliance.check.v1",
+    "payload": {
+      "change_id":        "CHG-4821",
+      "service":          "api-gateway",
+      "environment":      "staging",
+      "change_type":      "config_update",
+      "risk_level":       "medium",
+      "rollback_plan":    "revert via git tag v2.4.1",
+      "backup_confirmed": true
+    },
+    "max_delivery_attempts": 3
+  }
+}

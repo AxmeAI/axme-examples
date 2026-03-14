@@ -1,0 +1,58 @@
+{
+  "scenario_id": "internal.reminder_escalation.v1",
+  "title": "Internal runtime: reminder → escalation — human SLA enforcement",
+  "description": "Human task with remind_after_seconds=40 and max_reminders=2. The script waits and observes: REMINDER jobs fire twice (intent.reminder webhook), then when remind_count >= max_reminders the intent is escalated to a backup contact (intent.escalated webhook). The backup human then approves.",
+
+  "agents": [],
+
+  "humans": [
+    {
+      "role": "primary_approver",
+      "display_name": "Primary Approver",
+      "description": "step 1/1 — human: doesn't respond (triggers reminder/escalation cycle)",
+      "handler": { "type": "human_cli_hint" }
+    }
+  ],
+
+  "workflow_steps": [
+    {
+      "step_id": "approval_with_sla",
+      "tool_id": "tool.approval.human_signoff",
+      "assigned_to": "primary_approver",
+      "requires_approval": true,
+      "step_deadline_seconds": 600,
+      "human_task": {
+        "task_type": "approval",
+        "title": "Budget approval — do NOT approve immediately",
+        "description": "This scenario tests reminder/escalation. Wait for reminders to fire, then approve or let it escalate.",
+        "allowed_outcomes": ["approved", "rejected"],
+        "form_schema": {
+          "type": "object",
+          "required": ["approved"],
+          "properties": {
+            "approved": { "type": "boolean" },
+            "notes":    { "type": "string" }
+          }
+        }
+      }
+    }
+  ],
+
+  "intent": {
+    "type": "intent.example.escalation.v1",
+    "payload": {
+      "budget_id":   "BUD-TEST-001",
+      "amount":      5000,
+      "currency":    "USD",
+      "description": "Test budget for reminder/escalation scenario"
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 15,
+    "max_delivery_attempts": 3,
+    "remind_after_seconds": 40,
+    "remind_interval_seconds": 40,
+    "max_reminders": 2
+  }
+}

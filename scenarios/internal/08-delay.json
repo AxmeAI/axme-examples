@@ -1,0 +1,61 @@
+{
+  "scenario_id": "internal.delay.v1",
+  "title": "Internal runtime: delay — workflow auto-advances after pause",
+  "description": "A workflow step with runtime_type=delay blocks the workflow for N seconds, then automatically continues to the next step. No external participant needed. Tests the DELAY_TICK scheduled job and auto-advance behaviour.",
+
+  "agents": [
+    {
+      "role": "initiator_agent",
+      "address": "delay-demo-agent",
+      "display_name": "Delay Demo Agent",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "logic",
+        "name": "cache_invalidation_agent"
+      },
+      "description": "step 1/3 and step 3/3 — stream: validates cache operation spec before and after the delay"
+    }
+  ],
+
+  "humans": [],
+
+  "workflow_steps": [
+    {
+      "step_id": "before_delay",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "initiator_agent",
+      "step_deadline_seconds": 30,
+      "description": "runs before the delay"
+    },
+    {
+      "step_id": "cooldown",
+      "runtime_type": "delay",
+      "config": {
+        "seconds": 10,
+        "reason": "Wait 10s for cache invalidation before proceeding"
+      },
+      "description": "internal: auto-pause 10 seconds"
+    },
+    {
+      "step_id": "after_delay",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "initiator_agent",
+      "step_deadline_seconds": 30,
+      "description": "runs after the delay completes"
+    }
+  ],
+
+  "intent": {
+    "type": "intent.example.internal_delay.v1",
+    "payload": {
+      "service":    "cache-service",
+      "operation":  "invalidate_and_reload",
+      "cache_keys": ["user:*", "session:*"]
+    }
+  },
+
+  "durability": {
+    "deadline_minutes": 5,
+    "max_delivery_attempts": 3
+  }
+}

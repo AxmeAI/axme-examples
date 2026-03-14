@@ -1,0 +1,46 @@
+{
+  "scenario_id": "delivery.inbox_reply.v1",
+  "title": "Inbox / reply_to — disconnect-safe initiator pattern",
+  "description": "The initiator sends an intent with reply_to pointing to its own inbox address. The agent processes the intent (stream binding). When COMPLETED, AXME delivers the result to the initiator's reply_to inbox. The initiator can disconnect and read the result later — no persistent connection required.",
+
+  "agents": [
+    {
+      "role": "fulfillment",
+      "address": "fulfillment-service",
+      "display_name": "Fulfillment Service",
+      "delivery_mode": "stream",
+      "handler": {
+        "type": "logic",
+        "name": "fulfillment_service"
+      },
+      "description": "step 1/1 — stream: validates order, computes tracking ID, delivers result to initiator inbox"
+    }
+  ],
+
+  "humans": [],
+
+  "workflow_steps": [
+    {
+      "step_id": "fulfill_order",
+      "tool_id": "tool.approval.check_window",
+      "assigned_to": "fulfillment",
+      "step_deadline_seconds": 120
+    }
+  ],
+
+  "intent": {
+    "type": "intent.example.inbox_reply.v1",
+    "payload": {
+      "order_id":     "ord-4422",
+      "customer_id":  "cust-007",
+      "items":        [{ "sku": "PROD-001", "quantity": 3 }],
+      "shipping":     "express"
+    },
+    "_note": "reply_to is injected by runner from initiator's SA address"
+  },
+
+  "durability": {
+    "deadline_minutes": 10,
+    "max_delivery_attempts": 3
+  }
+}
