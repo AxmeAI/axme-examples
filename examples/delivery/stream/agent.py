@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import sys
 from typing import Any
 
@@ -43,6 +44,33 @@ AXME_AGENT_ADDRESS = os.environ.get(
 
 if not AXME_API_KEY:
     sys.exit("AXME_API_KEY is required")
+
+# ---------------------------------------------------------------------------
+# Delivery cursor — persists last_seen_seq across restarts
+# ---------------------------------------------------------------------------
+# The SSE stream supports ?since=<seq> for cursor-based delivery.  On startup
+# we load the highest seq seen in a previous run so the agent resumes exactly
+# where it left off instead of replaying the full intent history.
+
+_SEQ_FILE = pathlib.Path.home() / ".axme" / "compliance_checker_agent_seq.txt"
+
+
+def _load_since() -> int:
+    """Return the last persisted delivery_seq, or 0 if none."""
+    try:
+        return int(_SEQ_FILE.read_text(encoding="utf-8").strip())
+    except Exception:
+        return 0
+
+
+def _save_since(seq: int) -> None:
+    """Persist the delivery cursor so the next startup skips already-processed intents."""
+    try:
+        _SEQ_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _SEQ_FILE.write_text(str(seq), encoding="utf-8")
+    except Exception as exc:
+        log.warning("could not persist delivery cursor: %s", exc)
+
 
 # ---------------------------------------------------------------------------
 # Business logic — real compliance rules, no stubs
@@ -75,7 +103,7 @@ def _check_compliance(payload: dict[str, Any]) -> tuple[bool, str]:
 # Agent loop
 # ---------------------------------------------------------------------------
 
-def handle_intent(client: AxmeClient, delivery: dict[str, Any]) -> None:
+def handle_intent(client: AxmeClient, delivery: dict[str, Any], *, seq: int = 0) -> None:
     intent_id = delivery.get("intent_id", "")
     if not intent_id:
         log.warning("received delivery without intent_id, skipping")
@@ -125,6 +153,9 @@ def handle_intent(client: AxmeClient, delivery: dict[str, Any]) -> None:
                 owner_agent=AXME_AGENT_ADDRESS,
             )
         log.info("resumed intent %s  (passed=%s)", intent_id, passed)
+        # Advance the delivery cursor so the next startup skips this intent.
+        if seq > 0:
+            _save_since(seq)
     except Exception as exc:
         log.error("resume_intent(%s) failed: %s", intent_id, exc)
 
@@ -132,12 +163,18 @@ def handle_intent(client: AxmeClient, delivery: dict[str, Any]) -> None:
 def main() -> None:
     client = AxmeClient(AxmeClientConfig(api_key=AXME_API_KEY, base_url=AXME_BASE_URL))
 
-    log.info("compliance-checker-agent starting  address=%s  binding=stream", AXME_AGENT_ADDRESS)
+    since = _load_since()
+    log.info(
+        "compliance-checker-agent starting  address=%s  binding=stream  since=%d",
+        AXME_AGENT_ADDRESS,
+        since,
+    )
     log.info("listening on %s ...", AXME_BASE_URL)
 
     try:
-        for delivery in client.listen(AXME_AGENT_ADDRESS, timeout_seconds=None):
-            handle_intent(client, delivery)
+        for delivery in client.listen(AXME_AGENT_ADDRESS, since=since, timeout_seconds=None):
+            seq = delivery.get("seq") or 0
+            handle_intent(client, delivery, seq=seq)
     except KeyboardInterrupt:
         log.info("shutting down")
 
