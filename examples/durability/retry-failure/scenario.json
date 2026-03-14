@@ -1,0 +1,37 @@
+{
+  "scenario_id": "durability.retry_failure.v1",
+  "title": "Durability — delivery retry and FAILED transition",
+  "description": "Demonstrates AXME's built-in retry mechanism. The webhook-receiver agent is intentionally unavailable. AXME retries delivery up to max_delivery_attempts times with backoff. After all attempts are exhausted, the intent transitions to FAILED and emits an `intent.delivery_failed` lifecycle event.",
+
+  "agents": [
+    {
+      "role": "receiver",
+      "address": "webhook-receiver-agent",
+      "display_name": "Webhook Receiver",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "process_webhook",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "receiver",
+        "step_deadline_seconds": 30
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.webhook.delivery_test.v1",
+    "payload": {
+      "event_type":   "webhook.test.retry",
+      "source":       "durability-test",
+      "test_id":      "retry-failure-20260314",
+      "description":  "This intent is used to test retry-on-failure behavior. Run WITHOUT starting the agent to observe retries and final FAILED status."
+    },
+    "max_delivery_attempts": 3
+  }
+}
