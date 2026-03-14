@@ -1,0 +1,89 @@
+{
+  "scenario_id": "full.multi_agent.v1",
+  "title": "Full multi-agent — compliance check → risk assessment → CAB approval",
+  "description": "A complete production-grade workflow with three sequential steps: (1) compliance-checker validates the change against policy rules via SSE stream; (2) risk-assessment-agent scores the deployment risk via SSE stream; (3) the Change Advisory Board (CAB) human approver reviews both automated results and provides final sign-off. Demonstrates end-to-end AXME orchestration across multiple agents and a human step.",
+
+  "agents": [
+    {
+      "role": "compliance",
+      "address": "compliance-checker-agent",
+      "display_name": "Compliance Checker",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    },
+    {
+      "role": "risk",
+      "address": "risk-assessment-agent",
+      "display_name": "Risk Assessment Agent",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "cab",
+      "display_name": "Change Advisory Board (CAB)"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "compliance_check",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "compliance",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "risk_assessment",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "risk",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "cab_signoff",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "cab",
+        "requires_approval": true,
+        "step_deadline_seconds": 3600,
+        "remind_after_seconds": 900,
+        "remind_interval_seconds": 900,
+        "max_reminders": 2,
+        "human_task": {
+          "title": "CAB sign-off — api-gateway v3.5.0 → production",
+          "description": "Review compliance and risk assessment results, then approve or reject the production deployment. Both automated checks must pass before this step is presented.",
+          "form_schema": {
+            "type": "object",
+            "required": ["approved"],
+            "properties": {
+              "approved": { "type": "boolean" },
+              "conditions": {
+                "type": "string",
+                "description": "Optional conditions or rollback instructions"
+              },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.deployment.cab_approval.v1",
+    "payload": {
+      "change_id":        "CHG-20260314-005",
+      "service":          "api-gateway",
+      "version":          "3.5.0",
+      "environment":      "staging",
+      "change_type":      "config_update",
+      "risk_level":       "medium",
+      "rollback_plan":    "revert to v3.4.2 via git tag",
+      "backup_confirmed": true,
+      "change_count":     12,
+      "risk_threshold":   30
+    },
+    "max_delivery_attempts": 3
+  }
+}
