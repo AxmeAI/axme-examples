@@ -30,7 +30,7 @@
       },
       {
         "step_id": "security_signoff",
-        "tool_id": "tool.human.approval.v1",
+        "tool_id": "tool.approval.human_signoff",
         "assigned_to": "security_officer",
         "requires_approval": true,
         "step_deadline_seconds": 7200,

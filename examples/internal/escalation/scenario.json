@@ -1,0 +1,78 @@
+{
+  "scenario_id": "internal.escalation.v1",
+  "title": "Internal escalation — SLA breach triggers reminder chain",
+  "description": "Demonstrates AXME's built-in escalation mechanism. An automated agent validates an incident report, then routes it to the on-call engineer for acknowledgement. If the engineer does not respond within the SLA window, AXME automatically sends reminder emails. After max_reminders are exhausted, the step times out and the intent transitions to TIMED_OUT — triggering an escalation event.",
+
+  "agents": [
+    {
+      "role": "classifier",
+      "address": "incident-classifier-agent",
+      "display_name": "Incident Classifier",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "oncall",
+      "display_name": "On-Call Engineer"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "classify_incident",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "classifier",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "oncall_ack",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "oncall",
+        "requires_approval": true,
+        "step_deadline_seconds": 300,
+        "remind_after_seconds": 60,
+        "remind_interval_seconds": 60,
+        "max_reminders": 3,
+        "human_task": {
+          "title": "Incident acknowledgement required — INC-20260314-001 (P2)",
+          "description": "Acknowledge this P2 incident and provide initial response. SLA: 5 minutes. Reminders every 60 seconds. After 3 reminders without response the incident escalates automatically.",
+          "form_schema": {
+            "type": "object",
+            "required": ["acknowledged"],
+            "properties": {
+              "acknowledged": {
+                "type": "boolean"
+              },
+              "eta_minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Estimated resolution time in minutes"
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.incident.escalation.v1",
+    "payload": {
+      "incident_id":  "INC-20260314-001",
+      "severity":     "P2",
+      "service":      "api-gateway",
+      "environment":  "production",
+      "symptom":      "Elevated 5xx error rate (12%) on /v1/intents endpoint",
+      "started_at":   "2026-03-14T14:00:00Z",
+      "sla_minutes":  5
+    },
+    "max_delivery_attempts": 3
+  }
+}

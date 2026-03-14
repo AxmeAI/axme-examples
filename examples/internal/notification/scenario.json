@@ -1,0 +1,78 @@
+{
+  "scenario_id": "internal.notification.v1",
+  "title": "Internal notification — risk alert with owner notification",
+  "description": "An automated agent assesses deployment risk. If the risk level is elevated, AXME automatically notifies the owner via the built-in `tool.notification.notify_owner` step — sending an email with the alert details and waiting for acknowledgement.",
+
+  "agents": [
+    {
+      "role": "assessor",
+      "address": "risk-assessment-agent",
+      "display_name": "Risk Assessment Agent",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "owner",
+      "display_name": "Service Owner"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "assess_risk",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "assessor",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "notify_owner",
+        "tool_id": "tool.notification.notify_owner",
+        "assigned_to": "owner",
+        "requires_approval": true,
+        "step_deadline_seconds": 3600,
+        "remind_after_seconds": 600,
+        "remind_interval_seconds": 600,
+        "max_reminders": 2,
+        "human_task": {
+          "title": "Risk alert — api-gateway deployment risk: HIGH",
+          "description": "Risk assessment has flagged this deployment as HIGH risk. Review the risk report and acknowledge to proceed or reject to halt.",
+          "form_schema": {
+            "type": "object",
+            "required": ["acknowledged"],
+            "properties": {
+              "acknowledged": {
+                "type": "boolean",
+                "description": "Confirm you have reviewed the risk assessment"
+              },
+              "decision": {
+                "type": "string",
+                "enum": ["proceed", "halt", "defer"],
+                "description": "Decision on the deployment"
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.deployment.risk_alert.v1",
+    "payload": {
+      "deploy_id":     "deploy-20260314-002",
+      "service":       "api-gateway",
+      "version":       "4.0.0",
+      "environment":   "staging",
+      "change_count":  47,
+      "risk_threshold": 30
+    },
+    "max_delivery_attempts": 3
+  }
+}
