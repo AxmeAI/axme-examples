@@ -112,7 +112,8 @@ def handle_intent(client: AxmeClient, delivery: dict[str, Any], *, seq: int = 0)
     log.info("received intent %s", intent_id)
 
     try:
-        intent = client.get_intent(intent_id)
+        resp = client.get_intent(intent_id)
+        intent = resp.get("intent") or resp  # unwrap {"ok": true, "intent": {...}}
     except Exception as exc:
         log.error("get_intent(%s) failed: %s", intent_id, exc)
         return
@@ -125,8 +126,11 @@ def handle_intent(client: AxmeClient, delivery: dict[str, Any], *, seq: int = 0)
         log.debug("skipping intent %s with status %s", intent_id, status)
         return
 
-    payload = intent.get("payload") or {}
-    passed, reason = _check_compliance(payload)
+    raw_payload = intent.get("payload") or {}
+    # For step-intents: compliance data is in parent_payload.
+    # For direct intents: data is at top level.
+    effective_payload = raw_payload.get("parent_payload") or raw_payload
+    passed, reason = _check_compliance(effective_payload)
 
     log.info("compliance result for %s: passed=%s  reason=%s", intent_id, passed, reason)
 
