@@ -30,7 +30,7 @@
       },
       {
         "step_id": "finance_approval",
-        "tool_id": "tool.human.approval.v1",
+        "tool_id": "tool.approval.human_signoff",
         "assigned_to": "approver",
         "requires_approval": true,
         "step_deadline_seconds": 86400,

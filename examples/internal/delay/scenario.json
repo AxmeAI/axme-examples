@@ -1,0 +1,39 @@
+{
+  "scenario_id": "internal.delay.v1",
+  "title": "Internal delay — async processing with step deadline",
+  "description": "Demonstrates AXME's step-level deadline mechanism. The change validator agent performs async validation that may take time. The step has a `step_deadline_seconds` deadline — if the agent does not respond in time, the step transitions to TIMED_OUT. This shows how AXME tracks and enforces per-step SLAs.",
+
+  "agents": [
+    {
+      "role": "validator",
+      "address": "change-window-validator",
+      "display_name": "Change Window Validator",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "validate_change_window",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "validator",
+        "step_deadline_seconds": 120
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.change.window_check.v1",
+    "payload": {
+      "change_id":    "CHG-20260314-003",
+      "service":      "payments-processor",
+      "environment":  "staging",
+      "change_type":  "config_update",
+      "scheduled_at": "2026-03-14T18:00:00Z",
+      "window_id":    "MW-2026-Q1-03"
+    },
+    "max_delivery_attempts": 3
+  }
+}
