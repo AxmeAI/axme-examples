@@ -136,7 +136,7 @@ def handle_intent(client: AxmeClient, delivery: dict[str, Any], *, seq: int = 0)
 
     try:
         if passed:
-            client.resume_intent(
+            resp = client.resume_intent(
                 intent_id,
                 {
                     "action":  "complete",
@@ -147,7 +147,7 @@ def handle_intent(client: AxmeClient, delivery: dict[str, Any], *, seq: int = 0)
                 owner_agent=AXME_AGENT_ADDRESS,
             )
         else:
-            client.resume_intent(
+            resp = client.resume_intent(
                 intent_id,
                 {
                     "action": "fail",
@@ -156,7 +156,7 @@ def handle_intent(client: AxmeClient, delivery: dict[str, Any], *, seq: int = 0)
                 },
                 owner_agent=AXME_AGENT_ADDRESS,
             )
-        log.info("resumed intent %s  (passed=%s)", intent_id, passed)
+        log.info("resumed intent %s  (passed=%s)  response=%s", intent_id, passed, resp)
         # Advance the delivery cursor so the next startup skips this intent.
         if seq > 0:
             _save_since(seq)
