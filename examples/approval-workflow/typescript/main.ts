@@ -11,7 +11,10 @@ loadEnv({ path: path.resolve(__dirname, "..", ".env") });
 function requireEnv(name: string): string {
   const value = (process.env[name] ?? "").trim();
   if (!value) {
-    throw new Error(`missing required env var: ${name}`);
+    throw new Error(
+      `${name} is not set. Run 'axme login' to sign in, then:\n` +
+      `  export ${name}=$(axme context show --show-key --json | jq -r .api_key)`
+    );
   }
   return value;
 }
