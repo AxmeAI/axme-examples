@@ -1,0 +1,85 @@
+{
+  "scenario_id": "human.form.v1",
+  "title": "Human approval with structured form — access request",
+  "description": "An automated agent checks access policy and data sensitivity. The workflow then pauses for a Security Officer to fill in a structured approval form: grant duration, access scope confirmation, and audit notes. The form schema enforces required fields and types.",
+
+  "agents": [
+    {
+      "role": "policy_checker",
+      "address": "access-policy-checker",
+      "display_name": "Access Policy Checker",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "security_officer",
+      "display_name": "Security Officer"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "policy_check",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "policy_checker",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "security_signoff",
+        "tool_id": "tool.human.approval.v1",
+        "assigned_to": "security_officer",
+        "requires_approval": true,
+        "step_deadline_seconds": 7200,
+        "remind_after_seconds": 1800,
+        "remind_interval_seconds": 1800,
+        "max_reminders": 2,
+        "human_task": {
+          "title": "Access grant approval — READ on prod-analytics-db",
+          "description": "Grant or deny READ access for svc:reporting-service to prod-analytics-db. Complete all required form fields.",
+          "form_schema": {
+            "type": "object",
+            "required": ["approved", "grant_duration_days", "scope_confirmed"],
+            "properties": {
+              "approved": {
+                "type": "boolean",
+                "description": "Approve or reject the access request"
+              },
+              "grant_duration_days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 90,
+                "description": "Number of days to grant access (1–90)"
+              },
+              "scope_confirmed": {
+                "type": "boolean",
+                "description": "Confirm that READ-only scope is appropriate for this service"
+              },
+              "notes": {
+                "type": "string",
+                "description": "Optional audit notes"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.access.approval.v1",
+    "payload": {
+      "request_id":    "ITSM-ACC-20260314-881",
+      "resource":      "prod-analytics-db",
+      "access_type":   "READ",
+      "requestor":     "svc:reporting-service",
+      "justification": "New reporting pipeline requires read access to analytics tables for daily aggregation job",
+      "data_class":    "internal",
+      "pii_fields":    false
+    },
+    "max_delivery_attempts": 3
+  }
+}

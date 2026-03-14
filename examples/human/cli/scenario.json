@@ -1,0 +1,69 @@
+{
+  "scenario_id": "human.cli.v1",
+  "title": "Human approval via CLI — deployment readiness check",
+  "description": "An automated agent checks deployment readiness (version, environment, service health). If the checks pass, the workflow pauses and waits for a human operator to approve or reject the deployment via `axme tasks approve` / `axme tasks reject`.",
+
+  "agents": [
+    {
+      "role": "checker",
+      "address": "deploy-readiness-checker",
+      "display_name": "Deploy Readiness Checker",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "operator",
+      "display_name": "Operations Team"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "readiness_check",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "checker",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "ops_approval",
+        "tool_id": "tool.human.approval.v1",
+        "assigned_to": "operator",
+        "requires_approval": true,
+        "step_deadline_seconds": 3600,
+        "remind_after_seconds": 600,
+        "remind_interval_seconds": 600,
+        "max_reminders": 3,
+        "human_task": {
+          "title": "Deployment approval — api-gateway v3.2.1 → staging",
+          "description": "Review readiness check results and approve or reject the deployment.",
+          "form_schema": {
+            "type": "object",
+            "required": ["approved"],
+            "properties": {
+              "approved": { "type": "boolean" },
+              "notes":    { "type": "string" }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.deployment.approval.v1",
+    "payload": {
+      "deploy_id":    "deploy-20260314-001",
+      "service":      "api-gateway",
+      "version":      "3.2.1",
+      "environment":  "staging",
+      "image":        "gcr.io/axme-prod/api-gateway:3.2.1",
+      "rollback_tag": "3.1.9",
+      "requested_by": "ci/cd-pipeline"
+    },
+    "max_delivery_attempts": 3
+  }
+}

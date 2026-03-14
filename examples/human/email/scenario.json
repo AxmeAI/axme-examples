@@ -1,0 +1,69 @@
+{
+  "scenario_id": "human.email.v1",
+  "title": "Human approval via email — budget request",
+  "description": "An automated agent validates the budget request envelope against quarterly allocations. If validation passes, the workflow pauses and emails the designated approver a magic link. The approver clicks the link to approve or reject — no CLI needed.",
+
+  "agents": [
+    {
+      "role": "validator",
+      "address": "budget-envelope-validator",
+      "display_name": "Budget Envelope Validator",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "approver",
+      "display_name": "Finance Approver"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "validate_envelope",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "validator",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "finance_approval",
+        "tool_id": "tool.human.approval.v1",
+        "assigned_to": "approver",
+        "requires_approval": true,
+        "step_deadline_seconds": 86400,
+        "remind_after_seconds": 3600,
+        "remind_interval_seconds": 3600,
+        "max_reminders": 2,
+        "human_task": {
+          "title": "Budget approval — Q3 cloud infrastructure $32,000",
+          "description": "Approve or reject the Q3 cloud infrastructure budget request. The validator confirmed the request is within the quarterly envelope.",
+          "form_schema": {
+            "type": "object",
+            "required": ["approved"],
+            "properties": {
+              "approved": { "type": "boolean" },
+              "notes":    { "type": "string" }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.budget.approval.v1",
+    "payload": {
+      "budget_id":    "BUD-2026-Q3-INFRA",
+      "amount":       32000,
+      "currency":     "USD",
+      "category":     "cloud_infrastructure",
+      "department":   "engineering",
+      "description":  "Q3 cloud capacity expansion — additional GKE node pools",
+      "requested_by": "platform-team"
+    },
+    "max_delivery_attempts": 3
+  }
+}
