@@ -39,15 +39,7 @@
         "max_reminders": 3,
         "human_task": {
           "title": "Deployment approval — api-gateway v3.2.1 → staging",
-          "description": "Review readiness check results and approve or reject the deployment.",
-          "form_schema": {
-            "type": "object",
-            "required": ["approved"],
-            "properties": {
-              "approved": { "type": "boolean" },
-              "notes":    { "type": "string" }
-            }
-          }
+          "description": "Review readiness check results and approve or reject the deployment."
         }
       }
     ]

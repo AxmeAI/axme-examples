@@ -40,6 +40,7 @@
         "human_task": {
           "title": "Budget approval — Q3 cloud infrastructure $32,000",
           "description": "Approve or reject the Q3 cloud infrastructure budget request. The validator confirmed the request is within the quarterly envelope.",
+          "notify_email": "geobelsky@gmail.com",
           "form_schema": {
             "type": "object",
             "required": ["approved"],

@@ -1,0 +1,37 @@
+{
+  "scenario_id": "internal.timeout.v1",
+  "title": "Internal timeout — step-level deadline enforcement",
+  "description": "Demonstrates per-step deadlines. The agent step has a 15-second deadline. Run WITHOUT an agent to observe the step transition to TIMED_OUT after the deadline expires. Run WITH the agent to see normal completion within the deadline.",
+
+  "agents": [
+    {
+      "role": "validator",
+      "address": "change-window-validator",
+      "display_name": "Change Window Validator",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "validate_window",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "validator",
+        "step_deadline_seconds": 15
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.change.timeout_demo.v1",
+    "payload": {
+      "change_id":   "CHG-TIMEOUT-001",
+      "service":     "payments-processor",
+      "environment": "staging",
+      "change_type": "config_update"
+    },
+    "max_delivery_attempts": 3
+  }
+}
