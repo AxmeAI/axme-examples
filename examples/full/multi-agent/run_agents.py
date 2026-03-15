@@ -30,7 +30,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_WORKSPACE = Path(__file__).parent.parent.parent  # axme-examples/
+_WORKSPACE = Path(__file__).parent.parent.parent.parent  # axme-examples/
 _AGENT_CREDS = Path.home() / ".config" / "axme" / "scenario-agents.json"
 
 _AGENTS = [

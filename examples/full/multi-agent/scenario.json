@@ -53,18 +53,7 @@
         "human_task": {
           "title": "CAB sign-off — api-gateway v3.5.0 → production",
           "description": "Review compliance and risk assessment results, then approve or reject the production deployment. Both automated checks must pass before this step is presented.",
-          "form_schema": {
-            "type": "object",
-            "required": ["approved"],
-            "properties": {
-              "approved": { "type": "boolean" },
-              "conditions": {
-                "type": "string",
-                "description": "Optional conditions or rollback instructions"
-              },
-              "notes": { "type": "string" }
-            }
-          }
+          "notify_email": "geobelsky@gmail.com"
         }
       }
     ]

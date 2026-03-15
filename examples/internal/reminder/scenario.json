@@ -1,0 +1,59 @@
+{
+  "scenario_id": "internal.reminder.v1",
+  "title": "Internal reminder — periodic reminders for pending human tasks",
+  "description": "Demonstrates the reminder mechanism. After the agent completes validation, the workflow pauses for human approval with remind_after_seconds=30. If the human does not respond within 30 seconds, AXME sends a reminder email. Reminders repeat every 30 seconds up to max_reminders=3.",
+
+  "agents": [
+    {
+      "role": "validator",
+      "address": "change-window-validator",
+      "display_name": "Change Window Validator",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "reviewer",
+      "display_name": "Change Reviewer"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "validation",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "validator",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "review_approval",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "reviewer",
+        "requires_approval": true,
+        "step_deadline_seconds": 300,
+        "remind_after_seconds": 30,
+        "remind_interval_seconds": 30,
+        "max_reminders": 3,
+        "human_task": {
+          "title": "Change review — payments-processor config update",
+          "description": "Review the validation results and approve or reject the configuration change. Reminders will be sent every 30 seconds.",
+          "notify_email": "geobelsky@gmail.com"
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.change.reminder_demo.v1",
+    "payload": {
+      "change_id":   "CHG-REMINDER-001",
+      "service":     "payments-processor",
+      "environment": "staging",
+      "change_type": "config_update"
+    },
+    "max_delivery_attempts": 3
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "scenario_id": "internal.human_approval.v1",
+  "title": "Internal human_approval — direct human gate without agent preprocessing",
+  "description": "Demonstrates a pure human approval step as an internal runtime type. The workflow has a single step that immediately assigns a human task — no agent preprocessing. This tests the built-in human_approval handler directly.",
+
+  "humans": [
+    {
+      "role": "approver",
+      "display_name": "Direct Approver"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "direct_approval",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "approver",
+        "requires_approval": true,
+        "step_deadline_seconds": 3600,
+        "remind_after_seconds": 45,
+        "remind_interval_seconds": 45,
+        "max_reminders": 2,
+        "human_task": {
+          "title": "Direct approval — infrastructure change request",
+          "description": "This change request requires your approval. No automated pre-checks — review the payload and decide.",
+          "notify_email": "geobelsky@gmail.com",
+          "allowed_outcomes": ["approved", "rejected", "deferred"]
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.infra.direct_approval.v1",
+    "payload": {
+      "request_id":   "INFRA-DA-001",
+      "change_type":  "network_acl_update",
+      "environment":  "production",
+      "description":  "Add ingress rule for monitoring subnet 10.0.50.0/24 to payments VPC",
+      "requested_by": "sre-team",
+      "urgency":      "normal"
+    },
+    "max_delivery_attempts": 3
+  }
+}

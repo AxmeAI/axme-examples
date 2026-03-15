@@ -40,6 +40,7 @@
         "human_task": {
           "title": "Access grant approval — READ on prod-analytics-db",
           "description": "Grant or deny READ access for svc:reporting-service to prod-analytics-db. Complete all required form fields.",
+          "notify_email": "geobelsky@gmail.com",
           "form_schema": {
             "type": "object",
             "required": ["approved", "grant_duration_days", "scope_confirmed"],
