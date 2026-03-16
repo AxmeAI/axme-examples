@@ -1,0 +1,53 @@
+{
+  "scenario_id": "full.multi_binding.v1",
+  "title": "Full multi-binding — SSE stream + HTTP push in one workflow",
+  "description": "Demonstrates mixed delivery bindings within a single workflow: Step 1 delivers to a compliance-checker agent via SSE stream (persistent connection). Step 2 delivers to the HTTP order-processor agent via HTTP push callback (Cloud Run agent receives POST). Both mechanisms coexist in the same AXME workflow, showing that delivery binding is per-agent, not per-workflow.",
+
+  "agents": [
+    {
+      "role": "compliance",
+      "address": "compliance-checker-agent",
+      "display_name": "Compliance Checker (SSE stream)",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    },
+    {
+      "role": "processor",
+      "address": "http-order-processor",
+      "display_name": "HTTP Order Processor (HTTP push)",
+      "delivery_mode": "http",
+      "callback_url": "https://axme-http-agent-uc2bllq3la-uc.a.run.app/webhook",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "compliance_check",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "compliance",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "order_processing",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "processor",
+        "step_deadline_seconds": 60
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.mixed_delivery.v1",
+    "payload": {
+      "order_id": "ORD-MIXED-001",
+      "service": "api-gateway",
+      "environment": "staging",
+      "change_type": "config_update",
+      "risk_level": "low"
+    }
+  }
+}
