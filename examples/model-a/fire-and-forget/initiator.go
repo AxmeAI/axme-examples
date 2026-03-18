@@ -8,12 +8,20 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/AxmeAI/axme-sdk-go/axme"
 )
+
+func newUUID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
 
 func envOr(k, d string) string { if v := os.Getenv(k); v != "" { return v }; return d }
 
@@ -31,10 +39,11 @@ func main() {
 
 	log.Printf("firing intent to %s ...", toAgent)
 	created, err := client.CreateIntent(ctx, map[string]any{
-		"intent_type": "intent.compliance.check.v1",
-		"from_agent":  "initiator://fire-and-forget",
-		"to_agent":    toAgent,
-		"reply_to":    "initiator://fire-and-forget",
+		"intent_type":    "intent.compliance.check.v1",
+		"correlation_id": newUUID(),
+		"from_agent":     "initiator://fire-and-forget",
+		"to_agent":       toAgent,
+		"reply_to":       "initiator://fire-and-forget",
 		"payload": map[string]any{
 			"change_id": "CHG-FIRE-FORGET-001", "service": "payments-service", "version": "2.1.0",
 			"environment": "staging", "change_type": "config_update", "risk_level": "medium",

@@ -8,12 +8,20 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/AxmeAI/axme-sdk-go/axme"
 )
+
+func newUUID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
 
 func main() {
 	apiKey := os.Getenv("AXME_API_KEY")
@@ -30,9 +38,10 @@ func main() {
 
 	log.Printf("creating intent to %s ...", toAgent)
 	created, err := client.CreateIntent(ctx, map[string]any{
-		"intent_type": "intent.compliance.check.v1",
-		"from_agent":  "initiator://simple-request",
-		"to_agent":    toAgent,
+		"intent_type":    "intent.compliance.check.v1",
+		"correlation_id": newUUID(),
+		"from_agent":     "initiator://simple-request",
+		"to_agent":       toAgent,
 		"payload": map[string]any{
 			"change_id": "CHG-MODEL-A-001", "service": "api-gateway", "version": "4.0.0",
 			"environment": "staging", "change_type": "config_update", "risk_level": "low",

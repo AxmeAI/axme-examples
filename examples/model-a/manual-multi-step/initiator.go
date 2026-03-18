@@ -10,6 +10,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -53,6 +55,11 @@ func main() {
 	client, err := axme.NewClient(axme.ClientConfig{APIKey: apiKey, BaseURL: baseURL})
 	if err != nil { log.Fatalf("client init: %v", err) }
 	ctx := context.Background()
+	newUUID := func() string {
+		b := make([]byte, 16)
+		rand.Read(b)
+		return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+	}
 
 	changePayload := map[string]any{
 		"change_id": "CHG-MULTI-STEP-001", "service": "api-gateway", "version": "5.0.0",
@@ -62,8 +69,8 @@ func main() {
 	// Step 1
 	log.Printf("STEP 1: compliance check → %s", agent1)
 	c1, err := client.CreateIntent(ctx, map[string]any{
-		"intent_type": "intent.compliance.check.v1", "from_agent": "initiator://manual-multi-step",
-		"to_agent": agent1, "payload": changePayload,
+		"intent_type": "intent.compliance.check.v1", "correlation_id": newUUID(),
+		"from_agent": "initiator://manual-multi-step", "to_agent": agent1, "payload": changePayload,
 	}, axme.RequestOptions{})
 	if err != nil { log.Fatalf("create step1 failed: %v", err) }
 	step1ID, _ := c1["intent_id"].(string)
@@ -83,8 +90,8 @@ func main() {
 	step2Payload["compliance_intent_id"] = step1ID
 
 	c2, err := client.CreateIntent(ctx, map[string]any{
-		"intent_type": "intent.risk.assessment.v1", "from_agent": "initiator://manual-multi-step",
-		"to_agent": agent2, "payload": step2Payload,
+		"intent_type": "intent.risk.assessment.v1", "correlation_id": newUUID(),
+		"from_agent": "initiator://manual-multi-step", "to_agent": agent2, "payload": step2Payload,
 	}, axme.RequestOptions{})
 	if err != nil { log.Fatalf("create step2 failed: %v", err) }
 	step2ID, _ := c2["intent_id"].(string)
