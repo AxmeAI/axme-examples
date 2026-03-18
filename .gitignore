@@ -4,3 +4,10 @@
 **/.venv-e2e/
 **/node_modules/
 **/__pycache__/
+dist/
+package-lock.json
+go.sum
+**/target/
+**/bin/Debug/
+**/bin/Release/
+**/obj/

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <StartupObject>$(ExampleClass)</StartupObject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Axme" Version="0.1.1" />
+  </ItemGroup>
+</Project>
