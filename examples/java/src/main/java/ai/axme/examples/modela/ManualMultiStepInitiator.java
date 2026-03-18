@@ -23,7 +23,8 @@ public class ManualMultiStepInitiator {
         // Step 1
         System.out.printf("STEP 1: compliance check → %s%n", agent1);
         Map<String, Object> c1 = client.createIntent(Map.of("intent_type", "intent.compliance.check.v1",
-                "from_agent", "initiator://manual-multi-step", "to_agent", agent1, "payload", payload), RequestOptions.none());
+                "from_agent", "initiator://manual-multi-step", "to_agent", agent1,
+                "correlation_id", UUID.randomUUID().toString(), "payload", payload), RequestOptions.none());
         String s1id = (String) c1.get("intent_id");
         String s1 = waitForDone(client, s1id, 60_000);
         System.out.printf("step 1 → %s%n", s1);
@@ -34,7 +35,8 @@ public class ManualMultiStepInitiator {
         Map<String, Object> p2 = new HashMap<>(payload);
         p2.put("compliance_result", "passed"); p2.put("compliance_intent_id", s1id);
         Map<String, Object> c2 = client.createIntent(Map.of("intent_type", "intent.risk.assessment.v1",
-                "from_agent", "initiator://manual-multi-step", "to_agent", agent2, "payload", p2), RequestOptions.none());
+                "from_agent", "initiator://manual-multi-step", "to_agent", agent2,
+                "correlation_id", UUID.randomUUID().toString(), "payload", p2), RequestOptions.none());
         String s2id = (String) c2.get("intent_id");
         String s2 = waitForDone(client, s2id, 60_000);
         System.out.printf("step 2 → %s%n", s2);

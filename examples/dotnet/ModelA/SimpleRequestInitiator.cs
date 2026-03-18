@@ -16,6 +16,7 @@ var created = await client.CreateIntentAsync(new JsonObject
     ["intent_type"] = "intent.compliance.check.v1",
     ["from_agent"] = "initiator://simple-request",
     ["to_agent"] = toAgent,
+    ["correlation_id"] = Guid.NewGuid().ToString(),
     ["payload"] = new JsonObject { ["change_id"] = "CHG-MODEL-A-001", ["service"] = "api-gateway",
         ["version"] = "4.0.0", ["environment"] = "staging", ["change_type"] = "config_update", ["risk_level"] = "low" }
 });

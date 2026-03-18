@@ -34,7 +34,8 @@ var payload = new JsonObject { ["change_id"] = "CHG-MULTI-STEP-001", ["service"]
 // Step 1
 Console.WriteLine($"STEP 1: compliance check → {agent1}");
 var c1 = await client.CreateIntentAsync(new JsonObject { ["intent_type"] = "intent.compliance.check.v1",
-    ["from_agent"] = "initiator://manual-multi-step", ["to_agent"] = agent1, ["payload"] = payload.DeepClone() });
+    ["from_agent"] = "initiator://manual-multi-step", ["to_agent"] = agent1,
+    ["correlation_id"] = Guid.NewGuid().ToString(), ["payload"] = payload.DeepClone() });
 var s1id = c1["intent_id"]?.ToString() ?? "";
 Console.WriteLine($"step 1 intent: {s1id} — waiting...");
 var s1 = await WaitForDone(s1id);
@@ -47,7 +48,8 @@ Console.WriteLine($"STEP 2: risk assessment → {agent2}");
 var p2 = payload.DeepClone().AsObject();
 p2["compliance_result"] = "passed"; p2["compliance_intent_id"] = s1id;
 var c2 = await client.CreateIntentAsync(new JsonObject { ["intent_type"] = "intent.risk.assessment.v1",
-    ["from_agent"] = "initiator://manual-multi-step", ["to_agent"] = agent2, ["payload"] = p2 });
+    ["from_agent"] = "initiator://manual-multi-step", ["to_agent"] = agent2,
+    ["correlation_id"] = Guid.NewGuid().ToString(), ["payload"] = p2 });
 var s2id = c2["intent_id"]?.ToString() ?? "";
 Console.WriteLine($"step 2 intent: {s2id} — waiting...");
 var s2 = await WaitForDone(s2id);

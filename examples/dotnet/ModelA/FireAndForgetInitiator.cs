@@ -16,6 +16,7 @@ var created = await client.CreateIntentAsync(new JsonObject
     ["intent_type"] = "intent.compliance.check.v1",
     ["from_agent"] = "initiator://fire-and-forget", ["to_agent"] = toAgent,
     ["reply_to"] = "initiator://fire-and-forget",
+    ["correlation_id"] = Guid.NewGuid().ToString(),
     ["payload"] = new JsonObject { ["change_id"] = "CHG-FIRE-FORGET-001", ["service"] = "payments-service",
         ["version"] = "2.1.0", ["environment"] = "staging", ["change_type"] = "config_update", ["risk_level"] = "medium" }
 });
