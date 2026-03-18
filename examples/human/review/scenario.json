@@ -1,0 +1,58 @@
+{
+  "scenario_id": "human.review.v1",
+  "title": "Code review — PR sign-off before merge",
+  "description": "An automated agent runs static analysis and test coverage checks. The workflow then pauses for a human reviewer to approve, request changes, or reject the PR.",
+
+  "agents": [
+    {
+      "role": "analyzer",
+      "address": "code-quality-analyzer",
+      "display_name": "Code Quality Analyzer",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "reviewer",
+      "display_name": "Code Reviewer"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "run_analysis",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "analyzer",
+        "step_deadline_seconds": 120
+      },
+      {
+        "step_id": "code_review",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "reviewer",
+        "requires_approval": true,
+        "step_deadline_seconds": 172800,
+        "human_task": {
+          "title": "Review PR #847 — Add retry logic to payment service",
+          "description": "Static analysis passed. Test coverage: 94%. Please review the implementation and approve, request changes, or reject.",
+          "task_type": "review",
+          "notify_email": "reviewer@example.com"
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.code.review.v1",
+    "payload": {
+      "pr_number": 847,
+      "repository": "payment-service",
+      "branch": "feat/retry-logic",
+      "author": "platform-bot",
+      "files_changed": 12,
+      "coverage_pct": 94
+    }
+  }
+}
