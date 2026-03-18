@@ -7,6 +7,7 @@
 dist/
 package-lock.json
 go.sum
-examples/java/target/
-examples/dotnet/bin/
-examples/dotnet/obj/
+**/target/
+**/bin/Debug/
+**/bin/Release/
+**/obj/
