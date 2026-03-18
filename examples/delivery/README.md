@@ -1,6 +1,8 @@
 # Delivery Bindings — Examples
 
-All four AXME delivery modes, each as a self-contained `agent.py` + `scenario.json`.
+The four external AXME delivery modes, each as a self-contained `agent.py` + `scenario.json`.
+
+> **Note:** The fifth binding, `internal`, runs inside agent-core and is covered in `examples/internal/`.
 
 ## Quickstart
 
