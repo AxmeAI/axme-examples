@@ -4,3 +4,9 @@
 **/.venv-e2e/
 **/node_modules/
 **/__pycache__/
+dist/
+package-lock.json
+go.sum
+examples/java/target/
+examples/dotnet/bin/
+examples/dotnet/obj/
