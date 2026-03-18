@@ -192,5 +192,5 @@ All examples use AXME SDK v0.1.2:
 
 ## Alpha Access
 
-Get your API key at [cloud.axme.ai/alpha](https://cloud.axme.ai/alpha).
+Install the CLI and log in: `curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh && axme login`
 Contact: hello@axme.ai
