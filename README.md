@@ -1,156 +1,196 @@
 # AXME Examples
 
-Примеры использования AXME — полный набор сценариев для всех delivery bindings, human runtime, internal runtime, и durability-сценариев.
+Production-ready examples for the AXME platform — all delivery bindings, human approval flows, internal runtime, durability scenarios, and multi-agent orchestration.
 
-## Быстрый старт
+Each example is available in **5 languages**: Python, TypeScript, Go, Java, .NET.
+
+## Quick Start
 
 ```bash
-# 1. Установи CLI
+# 1. Install the CLI + SDK
 pip install axme
 
-# 2. Войди в аккаунт
+# 2. Log in
+export AXME_CLI_SECRET_STORAGE=file
 axme login
 
-# 3. Запусти сценарий
+# 3. Run any scenario (provisions agents, sends intent, watches lifecycle)
 axme scenarios apply examples/delivery/stream/scenario.json --watch
 ```
 
-## Структура
+## Repository Structure
 
 ```
 axme-examples/
-└── examples/
-    ├── delivery/
-    │   ├── stream/       ← SSE listen() — основной native binding
-    │   ├── poll/         ← polling loop
-    │   ├── http/         ← AXME пушит на HTTP endpoint (managed delivery)
-    │   └── inbox/        ← reply_to inbox (disconnect-safe)
-    ├── human/
-    │   ├── email/        ← email magic link — one-click approve
-    │   ├── cli/          ← axme tasks list + axme tasks approve
-    │   └── form/         ← structured form_schema + task_result validation
-    ├── internal/
-    │   ├── delay/        ← delay built-in — авто-продвижение после паузы
-    │   ├── notification/ ← notification built-in — email + inbox side effect
-    │   └── escalation/   ← reminder + escalation chain
-    ├── durability/
-    │   ├── retry-failure/        ← агент недоступен → retry → FAILED
-    │   ├── timeout/              ← deadline_at → TIMED_OUT
-    │   └── reminder-escalation/  ← human SLA breach → reminders → escalation
-    └── full/
-        └── multi-agent/          ← stream + http + internal + human в одном workflow
+├── examples/
+│   ├── delivery/
+│   │   ├── stream/              # SSE persistent connection
+│   │   ├── poll/                # Periodic polling
+│   │   ├── http/                # AXME pushes to callback URL
+│   │   └── inbox/               # reply_to inbox pattern
+│   ├── human/
+│   │   ├── cli/                 # CLI approval (axme tasks approve)
+│   │   ├── email/               # Email magic link approval
+│   │   └── form/                # Structured form approval
+│   ├── internal/
+│   │   ├── delay/               # Step deadline enforcement
+│   │   ├── notification/        # Owner notification + ack
+│   │   ├── escalation/          # Reminder chain + escalation
+│   │   ├── human_approval/      # Pure human gate (scenario-only)
+│   │   ├── timeout/             # Timeout demo (scenario-only)
+│   │   └── reminder/            # Reminder demo (scenario-only)
+│   ├── durability/
+│   │   ├── retry-failure/       # Delivery retry exhaustion → FAILED
+│   │   ├── timeout/             # Step deadline → TIMED_OUT
+│   │   └── reminder-escalation/ # Human SLA → reminders → escalation
+│   ├── full/
+│   │   ├── multi-agent/         # 2 agents + human approval in one workflow
+│   │   └── multi-binding/       # SSE + HTTP in one workflow (scenario-only)
+│   └── model-a/
+│       ├── simple-request/      # Initiator waits for agent response
+│       ├── fire-and-forget/     # Send intent, disconnect, check later
+│       └── manual-multi-step/   # Chain 2 agents sequentially
+├── protocol/                    # AXP protocol-only examples (runtime-agnostic)
+├── runner/                      # Python handler library (used by axme CLI)
+├── tests/                       # Unit tests for handlers
+├── lang/                        # Language-specific build configs
+│   ├── typescript/              # package.json, tsconfig.json
+│   ├── java/                    # pom.xml, SseHelper.java
+│   └── dotnet/                  # AxmeExamples.csproj, SseHelper.cs
+└── docs/                        # Supporting documentation
 ```
 
-## Запуск сценариев
+## Per-Example Layout
 
-Каждый сценарий — папка с `scenario.json` и `agent.py`.
+Each example contains a shared `scenario.json` and language-specific implementations:
+
+```
+examples/delivery/stream/
+├── scenario.json            # Shared across all languages
+├── README.md
+├── python/agent.py          # Python (pip install axme)
+├── typescript/agent.ts      # TypeScript (npx tsx)
+├── go/agent.go              # Go (go run)
+├── java/StreamAgent.java    # Java (Maven)
+└── dotnet/StreamAgent.cs    # .NET (dotnet run)
+```
+
+## Running Examples
+
+### Model B — ScenarioBundle (recommended)
+
+Most examples use `scenario.json` + the AXME CLI:
 
 ```bash
-# Запустить сценарий (создаёт агентов, отправляет intent, следит за lifecycle)
+# Step 1: Provision agents + submit intent + watch lifecycle
 axme scenarios apply examples/delivery/stream/scenario.json --watch
 
-# Только создать/обновить агентов без отправки intent
-axme scenarios apply examples/delivery/stream/scenario.json
+# Step 2: Start the agent in a separate terminal
+# Python:
+AXME_API_KEY=<agent-key> python examples/delivery/stream/python/agent.py
 
-# Запустить агента вручную (для stream/poll/http)
-python examples/delivery/stream/agent.py
+# TypeScript:
+AXME_API_KEY=<agent-key> npx tsx examples/delivery/stream/typescript/agent.ts
+
+# Go:
+AXME_API_KEY=<agent-key> go run examples/delivery/stream/go/agent.go
+
+# Java (from repo root):
+cd lang/java && mvn -q compile exec:java \
+  -Dexec.mainClass=ai.axme.examples.delivery.StreamAgent
+
+# .NET (from repo root):
+cd lang/dotnet && dotnet run -p:ExampleClass=AxmeExamples.Delivery.StreamAgent
 ```
 
-## Сценарии
+### Model A — Direct API (no ScenarioBundle)
 
-### Группа A — Delivery Bindings
+Model A examples use the SDK directly — the initiator creates intents via API:
 
-| Папка | Что тестирует | Команда запуска |
-|---|---|---|
-| `delivery/stream` | Агент через SSE `listen()` | `axme scenarios apply examples/delivery/stream/scenario.json --watch` |
-| `delivery/poll` | Агент через polling loop | `axme scenarios apply examples/delivery/poll/scenario.json --watch` |
-| `delivery/http` | AXME пушит на HTTP endpoint | `axme scenarios apply examples/delivery/http/scenario.json --watch` |
-| `delivery/inbox` | Initiator использует reply_to inbox | `axme scenarios apply examples/delivery/inbox/scenario.json --watch` |
+```bash
+# Start agent
+AXME_API_KEY=<agent-key> python examples/delivery/stream/python/agent.py
 
-### Группа B — Human Runtime
+# Run initiator
+AXME_API_KEY=<workspace-key> \
+AXME_TO_AGENT=agent://org/workspace/compliance-checker-agent \
+  python examples/model-a/simple-request/python/initiator.py
+```
 
-| Папка | Что тестирует |
-|---|---|
-| `human/email` | Email magic link — one-click approve |
-| `human/cli` | `axme tasks list` + `axme tasks approve` |
-| `human/form` | Structured form_schema + task_result validation |
+## Examples
 
-### Группа C — Internal Runtime
+### Delivery Bindings
 
-| Папка | Что тестирует |
-|---|---|
-| `internal/delay` | `delay` built-in — авто-продвижение после паузы |
-| `internal/notification` | `notification` built-in — email + inbox side effect |
-| `internal/escalation` | `reminder` + escalation chain |
+| Example | Pattern | Agent needed? |
+|---------|---------|:------------:|
+| `delivery/stream` | SSE persistent connection — real-time delivery | Yes |
+| `delivery/poll` | Periodic polling — batch/serverless friendly | Yes |
+| `delivery/http` | AXME POSTs to agent's callback URL | Yes (HTTP server) |
+| `delivery/inbox` | reply_to inbox — disconnect-safe | Yes |
 
-### Группа D — Durability
+### Human Approval
 
-| Папка | Что тестирует |
-|---|---|
-| `durability/retry-failure` | Агент недоступен → retry → FAILED + `intent.delivery_failed` |
-| `durability/timeout` | `deadline_at` → `TIMED_OUT` + `intent.timed_out` webhook |
+| Example | Approval method |
+|---------|----------------|
+| `human/cli` | `axme tasks approve <id>` from terminal |
+| `human/email` | One-click magic link in email |
+| `human/form` | Structured form with required fields |
+
+### Internal Runtime
+
+| Example | What it demonstrates |
+|---------|---------------------|
+| `internal/delay` | Step deadline (120s) — agent must respond in time |
+| `internal/notification` | Built-in notification to service owner |
+| `internal/escalation` | Reminders + timeout escalation chain |
+| `internal/human_approval` | Pure human gate, no agent (scenario-only) |
+| `internal/timeout` | Step timeout demo (scenario-only) |
+| `internal/reminder` | Reminder email demo (scenario-only) |
+
+### Durability
+
+| Example | What it demonstrates |
+|---------|---------------------|
+| `durability/retry-failure` | Delivery retry exhaustion → FAILED |
+| `durability/timeout` | Step deadline → TIMED_OUT |
 | `durability/reminder-escalation` | Human SLA breach → reminders → escalation |
 
-### Группа E — Полные сценарии
+### Full Workflows
 
-| Папка | Что тестирует |
-|---|---|
-| `full/multi-agent` | stream + http + internal notification + human в одном workflow |
+| Example | What it demonstrates |
+|---------|---------------------|
+| `full/multi-agent` | Compliance check → risk assessment → CAB human approval |
+| `full/multi-binding` | SSE + HTTP push in one workflow (scenario-only) |
 
-## Структура сценария
+### Model A (Manual Lifecycle)
 
-Каждый пример состоит из двух файлов:
+| Example | Pattern |
+|---------|---------|
+| `model-a/simple-request` | Create intent → observe → wait for completion |
+| `model-a/fire-and-forget` | Create intent → disconnect → check status later |
+| `model-a/manual-multi-step` | Chain 2 agents sequentially via initiator code |
 
-**`scenario.json`** — декларативное описание: агенты, workflow, intent:
+## SDK Versions
 
-```json
-{
-  "scenario_id": "my.scenario.v1",
-  "title": "My scenario",
-  "agents": [
-    {
-      "role": "processor",
-      "address": "my-processor-agent",
-      "display_name": "My Processor",
-      "delivery_mode": "stream",
-      "create_if_missing": true
-    }
-  ],
-  "workflow": {
-    "steps": [
-      {
-        "step_id": "process",
-        "tool_id": "tool.agent.task.v1",
-        "assigned_to": "processor",
-        "step_deadline_seconds": 60
-      }
-    ]
-  },
-  "intent": {
-    "type": "intent.my.type.v1",
-    "payload": { "key": "value" },
-    "max_delivery_attempts": 3
-  }
-}
-```
+All examples use AXME SDK v0.1.2:
 
-**`agent.py`** — агент, который обрабатывает intent:
+| Language | Package | Install |
+|----------|---------|---------|
+| Python | `axme` | `pip install axme` |
+| TypeScript | `@axme/axme` | `npm install @axme/axme` |
+| Go | `axme-sdk-go` | `go get github.com/AxmeAI/axme-sdk-go@v0.1.2` |
+| Java | `ai.axme:axme` | Maven Central |
+| .NET | `Axme` | `dotnet add package Axme` |
 
-```python
-import axme
+## Environment Variables
 
-client = axme.Client()
+| Variable | Required | Description |
+|----------|:--------:|-------------|
+| `AXME_API_KEY` | Yes | Service account or workspace API key |
+| `AXME_BASE_URL` | No | Default: `https://api.cloud.axme.ai` |
+| `AXME_AGENT_ADDRESS` | No | Agent address (bare name or full `agent://...`) |
 
-for intent in client.listen():
-    print(f"Received: {intent.payload}")
-    intent.resume(status="COMPLETED", result={"ok": True})
-```
+## Alpha Access
 
-## `delivery_mode` агента
-
-| Значение | Как получает intent |
-|---|---|
-| `stream` | SSE `listen()` — агент держит соединение, события приходят в реальном времени |
-| `poll` | Polling loop — агент периодически вызывает `poll()` |
-| `http` | AXME POSTит на `callback_url` — агент запускает HTTP-сервер |
-| `inbox` | Initiator передаёт `reply_to`, исполнитель отвечает через inbox |
+Get your API key at [cloud.axme.ai/alpha](https://cloud.axme.ai/alpha).
+Contact: hello@axme.ai
