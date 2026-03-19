@@ -31,7 +31,13 @@ axme-examples/
 │   ├── human/
 │   │   ├── cli/                 # CLI approval (axme tasks approve)
 │   │   ├── email/               # Email magic link approval
-│   │   └── form/                # Structured form approval
+│   │   ├── form/                # Structured form with required fields
+│   │   ├── confirmation/        # Confirm real-world action completed
+│   │   ├── assignment/          # Assign work to a person or team
+│   │   ├── review/              # Code/document review with approve/reject
+│   │   ├── clarification/       # Request clarification (comment required)
+│   │   ├── manual-action/       # Physical/manual action (evidence required)
+│   │   └── override/            # Override policy gate (comment required)
 │   ├── internal/
 │   │   ├── delay/               # Step deadline enforcement
 │   │   ├── notification/        # Owner notification + ack
@@ -128,13 +134,21 @@ AXME_TO_AGENT=agent://org/workspace/compliance-checker-agent \
 | `delivery/http` | AXME POSTs to agent's callback URL | Yes (HTTP server) |
 | `delivery/inbox` | reply_to inbox — disconnect-safe | Yes |
 
-### Human Approval
+### Human-in-the-Loop (8 Task Types)
 
-| Example | Approval method |
-|---------|----------------|
-| `human/cli` | `axme tasks approve <id>` from terminal |
-| `human/email` | One-click magic link in email |
-| `human/form` | Structured form with required fields |
+All human task examples send an email with a magic link to a web task page. The page renders task-specific UI based on `task_type`.
+
+| Example | Task type | What the human does |
+|---------|-----------|-------------------|
+| `human/cli` | `approval` | Approve/reject from CLI (`axme tasks approve`) |
+| `human/email` | `approval` | Approve/reject via email magic link |
+| `human/form` | `form` | Fill structured form with required fields |
+| `human/confirmation` | `confirmation` | Confirm a real-world action was completed |
+| `human/assignment` | `assignment` | Assign work to a person (with form fields) |
+| `human/review` | `review` | Review and approve, request changes, or reject |
+| `human/clarification` | `clarification` | Provide clarification (comment required) |
+| `human/manual-action` | `manual_action` | Complete a physical task, attach evidence |
+| `human/override` | `override` | Override a policy gate (comment required) |
 
 ### Internal Runtime
 
