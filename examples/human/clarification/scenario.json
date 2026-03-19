@@ -1,0 +1,75 @@
+{
+  "scenario_id": "human.clarification.v1",
+  "title": "Data clarification — missing fields in customer record",
+  "description": "An automated agent detects incomplete fields in a customer onboarding record and pauses the workflow to request structured data from the responsible team member.",
+
+  "agents": [
+    {
+      "role": "validator",
+      "address": "customer-data-validator",
+      "display_name": "Customer Data Validator",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "data_provider",
+      "display_name": "Customer Success Rep"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "validate_record",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "validator",
+        "step_deadline_seconds": 30
+      },
+      {
+        "step_id": "request_clarification",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "data_provider",
+        "requires_approval": true,
+        "step_deadline_seconds": 86400,
+        "human_task": {
+          "title": "Clarification needed — Customer ABC Corp onboarding",
+          "description": "The following fields are missing or invalid in the customer record. Please provide the correct values.",
+          "task_type": "clarification",
+          "notify_email": "cs-rep@example.com",
+          "form_schema": {
+            "type": "object",
+            "required": ["billing_contact_email", "tax_id"],
+            "properties": {
+              "billing_contact_email": {
+                "type": "string",
+                "description": "Billing contact email address"
+              },
+              "tax_id": {
+                "type": "string",
+                "description": "Company tax identification number"
+              },
+              "preferred_payment_method": {
+                "type": "string",
+                "description": "Payment method (wire, card, invoice)",
+                "enum": ["wire", "card", "invoice"]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.customer.onboarding.v1",
+    "payload": {
+      "customer_id": "CUST-2026-0847",
+      "company_name": "ABC Corp",
+      "missing_fields": ["billing_contact_email", "tax_id"],
+      "onboarding_stage": "data_validation"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "scenario_id": "human.override.v1",
+  "title": "Override — emergency production deploy outside change window",
+  "description": "An automated change management agent blocks a deployment because it falls outside the approved change window. The workflow pauses for a senior operator to provide an explicit override with justification.",
+
+  "agents": [
+    {
+      "role": "change_mgmt",
+      "address": "change-management-gate",
+      "display_name": "Change Management Gate",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "senior_operator",
+      "display_name": "Senior Operator"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "check_change_window",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "change_mgmt",
+        "step_deadline_seconds": 30
+      },
+      {
+        "step_id": "override_approval",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "senior_operator",
+        "requires_approval": true,
+        "step_deadline_seconds": 3600,
+        "human_task": {
+          "title": "Override request — deploy api-gateway v3.5.0 outside change window",
+          "description": "This deployment is blocked by change management policy: outside approved change window (next window: Monday 06:00 UTC). A critical hotfix requires immediate deployment. Provide justification to override.",
+          "task_type": "override",
+          "required_comment": true,
+          "notify_email": "senior-ops@example.com"
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.deploy.override.v1",
+    "payload": {
+      "service": "api-gateway",
+      "version": "v3.5.0",
+      "environment": "production",
+      "blocked_reason": "outside_change_window",
+      "next_window": "2026-03-20T06:00:00Z",
+      "hotfix_ticket": "HOT-2026-0092",
+      "risk_level": "high"
+    }
+  }
+}

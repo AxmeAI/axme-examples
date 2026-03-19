@@ -1,0 +1,62 @@
+{
+  "scenario_id": "human.manual_action.v1",
+  "title": "Manual action — physical server rack inspection",
+  "description": "An automated monitoring agent detects elevated temperatures in a server rack. The workflow pauses for a data center technician to physically inspect the rack and report findings.",
+
+  "agents": [
+    {
+      "role": "monitor",
+      "address": "dc-thermal-monitor",
+      "display_name": "Data Center Thermal Monitor",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "technician",
+      "display_name": "DC Technician"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "detect_anomaly",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "monitor",
+        "step_deadline_seconds": 30
+      },
+      {
+        "step_id": "rack_inspection",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "technician",
+        "requires_approval": true,
+        "step_deadline_seconds": 7200,
+        "remind_after_seconds": 1800,
+        "remind_interval_seconds": 1800,
+        "max_reminders": 3,
+        "human_task": {
+          "title": "Inspect server rack B-14 — elevated temperature alert",
+          "description": "Thermal sensors in rack B-14 report 42°C (threshold: 38°C). Please physically inspect the rack, check airflow and cooling, and report findings.",
+          "task_type": "manual_action",
+          "evidence_required": true,
+          "notify_email": "dc-ops@example.com"
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.dc.inspection.v1",
+    "payload": {
+      "rack_id": "B-14",
+      "location": "DC-East, Row 3",
+      "current_temp_c": 42,
+      "threshold_c": 38,
+      "alert_level": "warning",
+      "sensor_ids": ["SENS-B14-01", "SENS-B14-02"]
+    }
+  }
+}

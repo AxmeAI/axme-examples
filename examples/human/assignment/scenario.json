@@ -1,0 +1,75 @@
+{
+  "scenario_id": "human.assignment.v1",
+  "title": "Assignment — designate incident commander for P1",
+  "description": "An automated triage agent classifies an incident as P1 severity. The workflow pauses for the on-call manager to designate an incident commander who will own the resolution.",
+
+  "agents": [
+    {
+      "role": "triage",
+      "address": "incident-triage-agent",
+      "display_name": "Incident Triage Agent",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "oncall_manager",
+      "display_name": "On-Call Manager"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "triage_incident",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "triage",
+        "step_deadline_seconds": 30
+      },
+      {
+        "step_id": "assign_commander",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "oncall_manager",
+        "requires_approval": true,
+        "step_deadline_seconds": 900,
+        "remind_after_seconds": 300,
+        "remind_interval_seconds": 300,
+        "max_reminders": 2,
+        "human_task": {
+          "title": "Assign incident commander — P1: Payment processing outage",
+          "description": "Incident INC-2026-0431 classified as P1. Customer-facing payment processing is down. Please designate an incident commander.",
+          "task_type": "assignment",
+          "notify_email": "oncall-manager@example.com",
+          "form_schema": {
+            "type": "object",
+            "required": ["assignee_email"],
+            "properties": {
+              "assignee_email": {
+                "type": "string",
+                "description": "Email of the designated incident commander"
+              },
+              "notes": {
+                "type": "string",
+                "description": "Handoff notes for the commander"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.incident.assignment.v1",
+    "payload": {
+      "incident_id": "INC-2026-0431",
+      "severity": "P1",
+      "service": "payment-processing",
+      "impact": "Customer-facing payment transactions failing",
+      "detected_at": "2026-03-18T14:22:00Z",
+      "on_call_team": "platform-sre"
+    }
+  }
+}

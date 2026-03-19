@@ -1,0 +1,58 @@
+{
+  "scenario_id": "human.confirmation.v1",
+  "title": "Confirmation — verify DNS propagation completed",
+  "description": "An automated agent submits a DNS change request. The workflow pauses for the network team to confirm that DNS propagation has been verified across all regions before proceeding with the cutover.",
+
+  "agents": [
+    {
+      "role": "dns_agent",
+      "address": "dns-change-agent",
+      "display_name": "DNS Change Agent",
+      "delivery_mode": "stream",
+      "create_if_missing": true
+    }
+  ],
+
+  "humans": [
+    {
+      "role": "network_ops",
+      "display_name": "Network Operations"
+    }
+  ],
+
+  "workflow": {
+    "steps": [
+      {
+        "step_id": "submit_dns_change",
+        "tool_id": "tool.agent.task.v1",
+        "assigned_to": "dns_agent",
+        "step_deadline_seconds": 60
+      },
+      {
+        "step_id": "confirm_propagation",
+        "tool_id": "tool.approval.human_signoff",
+        "assigned_to": "network_ops",
+        "requires_approval": true,
+        "step_deadline_seconds": 14400,
+        "human_task": {
+          "title": "Confirm DNS propagation — api.example.com CNAME update",
+          "description": "DNS change submitted: api.example.com CNAME → new-lb.cloud.example.com. Please verify propagation across US-East, US-West, and EU-West regions before confirming.",
+          "task_type": "confirmation",
+          "notify_email": "netops@example.com"
+        }
+      }
+    ]
+  },
+
+  "intent": {
+    "type": "intent.dns.change.v1",
+    "payload": {
+      "domain": "api.example.com",
+      "record_type": "CNAME",
+      "old_value": "old-lb.cloud.example.com",
+      "new_value": "new-lb.cloud.example.com",
+      "regions_to_verify": ["us-east-1", "us-west-2", "eu-west-1"],
+      "change_ticket": "NET-2026-1847"
+    }
+  }
+}
