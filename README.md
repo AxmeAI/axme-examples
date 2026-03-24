@@ -206,5 +206,5 @@ All examples use AXME SDK v0.1.2:
 
 ## Alpha Access
 
-Install the CLI and log in: `curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh && axme login`
+Install the CLI and log in: `curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh && source ~/.zshrc && axme login`
 Contact: hello@axme.ai
