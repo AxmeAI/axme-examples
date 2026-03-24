@@ -14,4 +14,4 @@ Use this path when you want to:
 - `minimal-axp-service` - minimal lifecycle service (`accept -> complete`)
 - `conformance-runner` - conformance execution flow against custom endpoint
 
-If you want full end-to-end orchestration examples with retries/callbacks/coordination, use Cloud examples in `../cloud/README.md`.
+If you want full end-to-end orchestration examples with retries/callbacks/coordination, see Cloud examples in `../examples/README.md`.
