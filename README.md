@@ -2,6 +2,9 @@
 
 Production-ready examples for the AXME platform — all delivery bindings, human approval flows, internal runtime, durability scenarios, and multi-agent orchestration.
 
+> **Alpha** · Examples track the current SDK and API surface. APIs may change.
+> [Quick Start](https://cloud.axme.ai/alpha/cli) · [hello@axme.ai](mailto:hello@axme.ai)
+
 Each example is available in **5 languages**: Python, TypeScript, Go, Java, .NET.
 
 ## Quick Start
