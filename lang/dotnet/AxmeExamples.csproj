@@ -7,6 +7,6 @@
     <StartupObject>$(ExampleClass)</StartupObject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Axme" Version="0.1.1" />
+    <PackageReference Include="Axme" Version="0.1.2" />
   </ItemGroup>
 </Project>
