@@ -1,17 +1,38 @@
 # AXME Examples
 
-Production-ready examples for the AXME platform — all delivery bindings, human approval flows, internal runtime, durability scenarios, and multi-agent orchestration.
+AXME is a coordination infrastructure for durable execution - submit once, track lifecycle, complete later. These examples show every capability in runnable form.
+
+Production-ready examples for the AXME platform - all delivery bindings, human approval flows, internal runtime, durability scenarios, and multi-agent orchestration.
 
 Each example is available in **5 languages**: Python, TypeScript, Go, Java, .NET.
+
+## Related Repositories
+
+| Repository | Description |
+|------------|-------------|
+| [axme](https://github.com/AxmeAI/axme) | Main project and overview |
+| [axme-spec](https://github.com/AxmeAI/axme-spec) | Protocol specification |
+| [axme-docs](https://github.com/AxmeAI/axme-docs) | Documentation |
+| [axme-cli](https://github.com/AxmeAI/axme-cli) | CLI tool |
+| [axme-sdk-python](https://github.com/AxmeAI/axme-sdk-python) | Python SDK |
+| [axme-sdk-typescript](https://github.com/AxmeAI/axme-sdk-typescript) | TypeScript SDK |
+| [axme-sdk-go](https://github.com/AxmeAI/axme-sdk-go) | Go SDK |
+| [axme-sdk-java](https://github.com/AxmeAI/axme-sdk-java) | Java SDK |
+| [axme-sdk-dotnet](https://github.com/AxmeAI/axme-sdk-dotnet) | .NET SDK |
 
 ## Quick Start
 
 ```bash
+# 0. Get access - install the CLI and log in
+#    curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh
+#    (open a new terminal after install)
+#    Contact: hello@axme.ai
+
 # 1. Install the CLI + SDK
 pip install axme
 
 # 2. Log in
-export AXME_CLI_SECRET_STORAGE=file
+export AXME_CLI_SECRET_STORAGE=file   # Use file-based storage for headless/CI environments
 axme login
 
 # 3. Run any scenario (provisions agents, sends intent, watches lifecycle)
@@ -83,7 +104,9 @@ examples/delivery/stream/
 
 ## Running Examples
 
-### Model B — ScenarioBundle (recommended)
+### Model B - ScenarioBundle (recommended)
+
+Model B uses a declarative `scenario.json` file that the CLI provisions end-to-end: agents, intents, and lifecycle - no manual API calls needed.
 
 Most examples use `scenario.json` + the AXME CLI:
 
@@ -109,9 +132,11 @@ cd lang/java && mvn -q compile exec:java \
 cd lang/dotnet && dotnet run -p:ExampleClass=AxmeExamples.Delivery.StreamAgent
 ```
 
-### Model A — Direct API (no ScenarioBundle)
+### Model A - Direct API (no ScenarioBundle)
 
-Model A examples use the SDK directly — the initiator creates intents via API:
+Model A gives you full programmatic control - your code creates intents, manages agents, and handles lifecycle directly via the SDK.
+
+Model A examples use the SDK directly - the initiator creates intents via API:
 
 ```bash
 # Start agent
@@ -129,10 +154,10 @@ AXME_TO_AGENT=agent://org/workspace/compliance-checker-agent \
 
 | Example | Pattern | Agent needed? |
 |---------|---------|:------------:|
-| `delivery/stream` | SSE persistent connection — real-time delivery | Yes |
-| `delivery/poll` | Periodic polling — batch/serverless friendly | Yes |
+| `delivery/stream` | SSE persistent connection - real-time delivery | Yes |
+| `delivery/poll` | Periodic polling - batch/serverless friendly | Yes |
 | `delivery/http` | AXME POSTs to agent's callback URL | Yes (HTTP server) |
-| `delivery/inbox` | reply_to inbox — disconnect-safe | Yes |
+| `delivery/inbox` | reply_to inbox - disconnect-safe | Yes |
 
 ### Human-in-the-Loop (8 Task Types)
 
@@ -154,7 +179,7 @@ All human task examples send an email with a magic link to a web task page. The 
 
 | Example | What it demonstrates |
 |---------|---------------------|
-| `internal/delay` | Step deadline (120s) — agent must respond in time |
+| `internal/delay` | Step deadline (120s) - agent must respond in time |
 | `internal/notification` | Built-in notification to service owner |
 | `internal/escalation` | Reminders + timeout escalation chain |
 | `internal/human_approval` | Pure human gate, no agent (scenario-only) |
@@ -203,8 +228,16 @@ All examples use AXME SDK v0.1.2:
 | `AXME_API_KEY` | Yes | Service account or workspace API key |
 | `AXME_BASE_URL` | No | Default: `https://api.cloud.axme.ai` |
 | `AXME_AGENT_ADDRESS` | No | Agent address (bare name or full `agent://...`) |
+| `AXME_CLI_SECRET_STORAGE` | No | Set to `file` for headless/CI environments (default: OS keychain) |
 
 ## Alpha Access
 
-Install the CLI and log in: `curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh` (open a new terminal, then `axme login`)
+Install the CLI and log in:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh
+# Open a new terminal after install
+axme login
+```
+
 Contact: hello@axme.ai
