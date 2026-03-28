@@ -5,7 +5,7 @@ Production-ready examples for the AXME platform - every delivery binding, human 
 [![Alpha](https://img.shields.io/badge/status-alpha-orange)](https://cloud.axme.ai/alpha/cli)
 [![License](https://img.shields.io/badge/license-see%20LICENSE-blue)](LICENSE)
 
-[Quick Start](#quick-start) · [axme](https://github.com/AxmeAI/axme) · [Docs](https://github.com/AxmeAI/axme-docs) · [Spec](https://github.com/AxmeAI/axme-spec)
+[Quick Start](#quick-start) · [axme](https://github.com/AxmeAI/axme) · [Docs](https://github.com/AxmeAI/axme-docs) · [Spec](https://github.com/AxmeAI/axp-spec)
 
 ---
 
@@ -228,7 +228,7 @@ All examples use AXME SDK v0.1.2:
 | Repository | Description |
 |------------|-------------|
 | [axme](https://github.com/AxmeAI/axme) | Main project and overview |
-| [axme-spec](https://github.com/AxmeAI/axme-spec) | Protocol specification |
+| [axp-spec](https://github.com/AxmeAI/axp-spec) | Protocol specification |
 | [axme-docs](https://github.com/AxmeAI/axme-docs) | Documentation |
 | [axme-cli](https://github.com/AxmeAI/axme-cli) | CLI tool |
 | [axme-sdk-python](https://github.com/AxmeAI/axme-sdk-python) | Python SDK |
