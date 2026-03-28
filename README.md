@@ -1,152 +1,13 @@
 # AXME Examples
 
-AXME is a coordination infrastructure for durable execution - submit once, track lifecycle, complete later. These examples show every capability in runnable form.
+Production-ready examples for the AXME platform - every delivery binding, human approval flow, internal runtime, durability scenario, and multi-agent orchestration. Each example runs in 5 languages: Python, TypeScript, Go, Java, .NET.
 
-Production-ready examples for the AXME platform - all delivery bindings, human approval flows, internal runtime, durability scenarios, and multi-agent orchestration.
+[![Alpha](https://img.shields.io/badge/status-alpha-orange)](https://cloud.axme.ai/alpha/cli)
+[![License](https://img.shields.io/badge/license-see%20LICENSE-blue)](LICENSE)
 
-Each example is available in **5 languages**: Python, TypeScript, Go, Java, .NET.
+[Quick Start](#quick-start) · [axme](https://github.com/AxmeAI/axme) · [Docs](https://github.com/AxmeAI/axme-docs) · [Spec](https://github.com/AxmeAI/axp-spec)
 
-## Related Repositories
-
-| Repository | Description |
-|------------|-------------|
-| [axme](https://github.com/AxmeAI/axme) | Main project and overview |
-| [axme-spec](https://github.com/AxmeAI/axme-spec) | Protocol specification |
-| [axme-docs](https://github.com/AxmeAI/axme-docs) | Documentation |
-| [axme-cli](https://github.com/AxmeAI/axme-cli) | CLI tool |
-| [axme-sdk-python](https://github.com/AxmeAI/axme-sdk-python) | Python SDK |
-| [axme-sdk-typescript](https://github.com/AxmeAI/axme-sdk-typescript) | TypeScript SDK |
-| [axme-sdk-go](https://github.com/AxmeAI/axme-sdk-go) | Go SDK |
-| [axme-sdk-java](https://github.com/AxmeAI/axme-sdk-java) | Java SDK |
-| [axme-sdk-dotnet](https://github.com/AxmeAI/axme-sdk-dotnet) | .NET SDK |
-
-## Quick Start
-
-```bash
-# 0. Get access - install the CLI and log in
-#    curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh
-#    (open a new terminal after install)
-#    Contact: hello@axme.ai
-
-# 1. Install the CLI + SDK
-pip install axme
-
-# 2. Log in
-export AXME_CLI_SECRET_STORAGE=file   # Use file-based storage for headless/CI environments
-axme login
-
-# 3. Run any scenario (provisions agents, sends intent, watches lifecycle)
-axme scenarios apply examples/delivery/stream/scenario.json --watch
-```
-
-## Repository Structure
-
-```
-axme-examples/
-├── examples/
-│   ├── delivery/
-│   │   ├── stream/              # SSE persistent connection
-│   │   ├── poll/                # Periodic polling
-│   │   ├── http/                # AXME pushes to callback URL
-│   │   └── inbox/               # reply_to inbox pattern
-│   ├── human/
-│   │   ├── cli/                 # CLI approval (axme tasks approve)
-│   │   ├── email/               # Email magic link approval
-│   │   ├── form/                # Structured form with required fields
-│   │   ├── confirmation/        # Confirm real-world action completed
-│   │   ├── assignment/          # Assign work to a person or team
-│   │   ├── review/              # Code/document review with approve/reject
-│   │   ├── clarification/       # Request clarification (comment required)
-│   │   ├── manual-action/       # Physical/manual action (evidence required)
-│   │   └── override/            # Override policy gate (comment required)
-│   ├── internal/
-│   │   ├── delay/               # Step deadline enforcement
-│   │   ├── notification/        # Owner notification + ack
-│   │   ├── escalation/          # Reminder chain + escalation
-│   │   ├── human_approval/      # Pure human gate (scenario-only)
-│   │   ├── timeout/             # Timeout demo (scenario-only)
-│   │   └── reminder/            # Reminder demo (scenario-only)
-│   ├── durability/
-│   │   ├── retry-failure/       # Delivery retry exhaustion → FAILED
-│   │   ├── timeout/             # Step deadline → TIMED_OUT
-│   │   └── reminder-escalation/ # Human SLA → reminders → escalation
-│   ├── full/
-│   │   ├── multi-agent/         # 2 agents + human approval in one workflow
-│   │   └── multi-binding/       # SSE + HTTP in one workflow (scenario-only)
-│   └── model-a/
-│       ├── simple-request/      # Initiator waits for agent response
-│       ├── fire-and-forget/     # Send intent, disconnect, check later
-│       └── manual-multi-step/   # Chain 2 agents sequentially
-├── protocol/                    # AXP protocol-only examples (runtime-agnostic)
-├── runner/                      # Python handler library (used by axme CLI)
-├── tests/                       # Unit tests for handlers
-├── lang/                        # Language-specific build configs
-│   ├── typescript/              # package.json, tsconfig.json
-│   ├── java/                    # pom.xml, SseHelper.java
-│   └── dotnet/                  # AxmeExamples.csproj, SseHelper.cs
-└── docs/                        # Supporting documentation
-```
-
-## Per-Example Layout
-
-Each example contains a shared `scenario.json` and language-specific implementations:
-
-```
-examples/delivery/stream/
-├── scenario.json            # Shared across all languages
-├── README.md
-├── python/agent.py          # Python (pip install axme)
-├── typescript/agent.ts      # TypeScript (npx tsx)
-├── go/agent.go              # Go (go run)
-├── java/StreamAgent.java    # Java (Maven)
-└── dotnet/StreamAgent.cs    # .NET (dotnet run)
-```
-
-## Running Examples
-
-### Model B - ScenarioBundle (recommended)
-
-Model B uses a declarative `scenario.json` file that the CLI provisions end-to-end: agents, intents, and lifecycle - no manual API calls needed.
-
-Most examples use `scenario.json` + the AXME CLI:
-
-```bash
-# Step 1: Provision agents + submit intent + watch lifecycle
-axme scenarios apply examples/delivery/stream/scenario.json --watch
-
-# Step 2: Start the agent in a separate terminal
-# Python:
-AXME_API_KEY=<agent-key> python examples/delivery/stream/python/agent.py
-
-# TypeScript:
-AXME_API_KEY=<agent-key> npx tsx examples/delivery/stream/typescript/agent.ts
-
-# Go:
-AXME_API_KEY=<agent-key> go run examples/delivery/stream/go/agent.go
-
-# Java (from repo root):
-cd lang/java && mvn -q compile exec:java \
-  -Dexec.mainClass=ai.axme.examples.delivery.StreamAgent
-
-# .NET (from repo root):
-cd lang/dotnet && dotnet run -p:ExampleClass=AxmeExamples.Delivery.StreamAgent
-```
-
-### Model A - Direct API (no ScenarioBundle)
-
-Model A gives you full programmatic control - your code creates intents, manages agents, and handles lifecycle directly via the SDK.
-
-Model A examples use the SDK directly - the initiator creates intents via API:
-
-```bash
-# Start agent
-AXME_API_KEY=<agent-key> python examples/delivery/stream/python/agent.py
-
-# Run initiator
-AXME_API_KEY=<workspace-key> \
-AXME_TO_AGENT=agent://org/workspace/compliance-checker-agent \
-  python examples/model-a/simple-request/python/initiator.py
-```
+---
 
 ## Examples
 
@@ -190,24 +51,156 @@ All human task examples send an email with a magic link to a web task page. The 
 
 | Example | What it demonstrates |
 |---------|---------------------|
-| `durability/retry-failure` | Delivery retry exhaustion → FAILED |
-| `durability/timeout` | Step deadline → TIMED_OUT |
-| `durability/reminder-escalation` | Human SLA breach → reminders → escalation |
+| `durability/retry-failure` | Delivery retry exhaustion - FAILED |
+| `durability/timeout` | Step deadline - TIMED_OUT |
+| `durability/reminder-escalation` | Human SLA breach - reminders - escalation |
 
 ### Full Workflows
 
 | Example | What it demonstrates |
 |---------|---------------------|
-| `full/multi-agent` | Compliance check → risk assessment → CAB human approval |
+| `full/multi-agent` | Compliance check - risk assessment - CAB human approval |
 | `full/multi-binding` | SSE + HTTP push in one workflow (scenario-only) |
 
 ### Model A (Manual Lifecycle)
 
 | Example | Pattern |
 |---------|---------|
-| `model-a/simple-request` | Create intent → observe → wait for completion |
-| `model-a/fire-and-forget` | Create intent → disconnect → check status later |
+| `model-a/simple-request` | Create intent - observe - wait for completion |
+| `model-a/fire-and-forget` | Create intent - disconnect - check status later |
 | `model-a/manual-multi-step` | Chain 2 agents sequentially via initiator code |
+
+---
+
+## Quick Start
+
+```bash
+# 1. Install the CLI + SDK
+pip install axme
+
+# 2. Log in
+export AXME_CLI_SECRET_STORAGE=file   # Use file-based storage for headless/CI environments
+axme login
+
+# 3. Run any scenario (provisions agents, sends intent, watches lifecycle)
+axme scenarios apply examples/delivery/stream/scenario.json --watch
+```
+
+Alpha access: [cloud.axme.ai/alpha/cli](https://cloud.axme.ai/alpha/cli) - Install: `curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh`
+
+---
+
+## Per-Example Layout
+
+Each example contains a shared `scenario.json` and language-specific implementations:
+
+```
+examples/delivery/stream/
+├── scenario.json            # Shared across all languages
+├── README.md
+├── python/agent.py          # Python (pip install axme)
+├── typescript/agent.ts      # TypeScript (npx tsx)
+├── go/agent.go              # Go (go run)
+├── java/StreamAgent.java    # Java (Maven)
+└── dotnet/StreamAgent.cs    # .NET (dotnet run)
+```
+
+---
+
+## Running Examples
+
+### Model B - ScenarioBundle (recommended)
+
+Model B uses a declarative `scenario.json` file that the CLI provisions end-to-end: agents, intents, and lifecycle - no manual API calls needed.
+
+```bash
+# Step 1: Provision agents + submit intent + watch lifecycle
+axme scenarios apply examples/delivery/stream/scenario.json --watch
+
+# Step 2: Start the agent in a separate terminal
+# Python:
+AXME_API_KEY=<agent-key> python examples/delivery/stream/python/agent.py
+
+# TypeScript:
+AXME_API_KEY=<agent-key> npx tsx examples/delivery/stream/typescript/agent.ts
+
+# Go:
+AXME_API_KEY=<agent-key> go run examples/delivery/stream/go/agent.go
+
+# Java (from repo root):
+cd lang/java && mvn -q compile exec:java \
+  -Dexec.mainClass=ai.axme.examples.delivery.StreamAgent
+
+# .NET (from repo root):
+cd lang/dotnet && dotnet run -p:ExampleClass=AxmeExamples.Delivery.StreamAgent
+```
+
+### Model A - Direct API (no ScenarioBundle)
+
+Model A gives you full programmatic control - your code creates intents, manages agents, and handles lifecycle directly via the SDK.
+
+```bash
+# Start agent
+AXME_API_KEY=<agent-key> python examples/delivery/stream/python/agent.py
+
+# Run initiator
+AXME_API_KEY=<workspace-key> \
+AXME_TO_AGENT=agent://org/workspace/compliance-checker-agent \
+  python examples/model-a/simple-request/python/initiator.py
+```
+
+---
+
+<details>
+<summary>Repo structure, SDK versions, environment variables, related repositories</summary>
+
+## Repository Structure
+
+```
+axme-examples/
+├── examples/
+│   ├── delivery/
+│   │   ├── stream/              # SSE persistent connection
+│   │   ├── poll/                # Periodic polling
+│   │   ├── http/                # AXME pushes to callback URL
+│   │   └── inbox/               # reply_to inbox pattern
+│   ├── human/
+│   │   ├── cli/                 # CLI approval (axme tasks approve)
+│   │   ├── email/               # Email magic link approval
+│   │   ├── form/                # Structured form with required fields
+│   │   ├── confirmation/        # Confirm real-world action completed
+│   │   ├── assignment/          # Assign work to a person or team
+│   │   ├── review/              # Code/document review with approve/reject
+│   │   ├── clarification/       # Request clarification (comment required)
+│   │   ├── manual-action/       # Physical/manual action (evidence required)
+│   │   └── override/            # Override policy gate (comment required)
+│   ├── internal/
+│   │   ├── delay/               # Step deadline enforcement
+│   │   ├── notification/        # Owner notification + ack
+│   │   ├── escalation/          # Reminder chain + escalation
+│   │   ├── human_approval/      # Pure human gate (scenario-only)
+│   │   ├── timeout/             # Timeout demo (scenario-only)
+│   │   └── reminder/            # Reminder demo (scenario-only)
+│   ├── durability/
+│   │   ├── retry-failure/       # Delivery retry exhaustion - FAILED
+│   │   ├── timeout/             # Step deadline - TIMED_OUT
+│   │   └── reminder-escalation/ # Human SLA - reminders - escalation
+│   ├── full/
+│   │   ├── multi-agent/         # 2 agents + human approval in one workflow
+│   │   └── multi-binding/       # SSE + HTTP in one workflow (scenario-only)
+│   └── model-a/
+│       ├── simple-request/      # Initiator waits for agent response
+│       ├── fire-and-forget/     # Send intent, disconnect, check later
+│       └── manual-multi-step/   # Chain 2 agents sequentially
+├── protocol/                    # AXP protocol-only examples (runtime-agnostic)
+├── runner/                      # Python handler library (used by axme CLI)
+├── tests/                       # Unit tests for handlers
+├── lang/                        # Language-specific build configs
+│   ├── typescript/              # package.json, tsconfig.json
+│   ├── java/                    # pom.xml, SseHelper.java
+│   └── dotnet/                  # AxmeExamples.csproj, SseHelper.cs
+└── docs/                        # Supporting documentation
+```
 
 ## SDK Versions
 
@@ -230,14 +223,22 @@ All examples use AXME SDK v0.1.2:
 | `AXME_AGENT_ADDRESS` | No | Agent address (bare name or full `agent://...`) |
 | `AXME_CLI_SECRET_STORAGE` | No | Set to `file` for headless/CI environments (default: OS keychain) |
 
-## Alpha Access
+## Related Repositories
 
-Install the CLI and log in:
+| Repository | Description |
+|------------|-------------|
+| [axme](https://github.com/AxmeAI/axme) | Main project and overview |
+| [axp-spec](https://github.com/AxmeAI/axp-spec) | Protocol specification |
+| [axme-docs](https://github.com/AxmeAI/axme-docs) | Documentation |
+| [axme-cli](https://github.com/AxmeAI/axme-cli) | CLI tool |
+| [axme-sdk-python](https://github.com/AxmeAI/axme-sdk-python) | Python SDK |
+| [axme-sdk-typescript](https://github.com/AxmeAI/axme-sdk-typescript) | TypeScript SDK |
+| [axme-sdk-go](https://github.com/AxmeAI/axme-sdk-go) | Go SDK |
+| [axme-sdk-java](https://github.com/AxmeAI/axme-sdk-java) | Java SDK |
+| [axme-sdk-dotnet](https://github.com/AxmeAI/axme-sdk-dotnet) | .NET SDK |
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/AxmeAI/axme-cli/main/install.sh | sh
-# Open a new terminal after install
-axme login
-```
+</details>
 
-Contact: hello@axme.ai
+---
+
+[hello@axme.ai](mailto:hello@axme.ai) · [@axme_ai](https://x.com/axme_ai) · [Security](SECURITY.md) · [License](LICENSE)
