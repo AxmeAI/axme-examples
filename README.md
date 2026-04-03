@@ -105,6 +105,11 @@ examples/delivery/stream/
 └── dotnet/StreamAgent.cs    # .NET (dotnet run)
 ```
 
+The `scenario.json` intent section supports deadline options:
+- `deadline_at` -- absolute ISO 8601 timestamp
+- `ttl_seconds` -- relative duration (60s to 7 days), mutually exclusive with `deadline_at`
+- `step_deadline_seconds` -- per-workflow-step deadline
+
 ---
 
 ## Running Examples
